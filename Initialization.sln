@@ -52,6 +52,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "InstancingAndCulling", "Ins
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Picking", "Picking\Picking.vcxproj", "{23389415-F43F-4480-AD1C-E96CEBD2537F}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CubeMap", "CubeMap\CubeMap.vcxproj", "{63FD2947-B820-4EEB-8080-730576159BD4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -244,6 +246,14 @@ Global
 		{23389415-F43F-4480-AD1C-E96CEBD2537F}.Release|x64.Build.0 = Release|x64
 		{23389415-F43F-4480-AD1C-E96CEBD2537F}.Release|x86.ActiveCfg = Release|Win32
 		{23389415-F43F-4480-AD1C-E96CEBD2537F}.Release|x86.Build.0 = Release|Win32
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Debug|x64.ActiveCfg = Debug|x64
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Debug|x64.Build.0 = Debug|x64
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Debug|x86.ActiveCfg = Debug|Win32
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Debug|x86.Build.0 = Debug|Win32
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Release|x64.ActiveCfg = Release|x64
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Release|x64.Build.0 = Release|x64
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Release|x86.ActiveCfg = Release|Win32
+		{63FD2947-B820-4EEB-8080-730576159BD4}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
