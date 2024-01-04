@@ -55,7 +55,13 @@ bool CubeMapApp::Initialize()
 
 void CubeMapApp::LoadTextures()
 {
-	std::vector<std::wstring> filenames { L"white1x1.dds" };
+	std::vector<std::wstring> filenames 
+	{ 
+		L"bricks2.dds",
+		L"tile.dds",
+		L"white1x1.dds",
+		L"grasscube1024.dds"
+	};
 	
 	for_each(filenames.begin(), filenames.end(), [&](auto& curFilename) {
 		auto tex = std::make_unique<Texture>();
@@ -68,10 +74,46 @@ void CubeMapApp::LoadTextures()
 
 void CubeMapApp::BuildRootSignature()
 {
+	CD3DX12_DESCRIPTOR_RANGE cubeTexTable{}, texTable{};
+	cubeTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
+
+	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+	slotRootParameter[0].InitAsConstantBufferView(0);
+	slotRootParameter[1].InitAsConstantBufferView(1);
+	slotRootParameter[2].InitAsShaderResourceView(0, 1);
+	slotRootParameter[3].InitAsDescriptorTable(1, &cubeTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+
+	auto staticSamplers = d3dUtil::GetStaticSamplers();
+	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc{
+		_countof(slotRootParameter), slotRootParameter,
+		static_cast<UINT>(staticSamplers.size()), staticSamplers.data(),
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT };
+
+	ComPtr<ID3DBlob> serialized = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+	HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+		serialized.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob != nullptr) ::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+	ThrowIfFailed(hr);
+	
+	ThrowIfFailed(md3dDevice->CreateRootSignature(0, serialized->GetBufferPointer(), serialized->GetBufferSize(), 
+		IID_PPV_ARGS(&mRootSignature)));
 }
 
 void CubeMapApp::BuildDescriptorHeaps()
 {
+	UINT mSkyTexHeapIndex = 0;
+
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	heapDesc.NodeMask = 0;
+	heapDesc.NumDescriptors = static_cast<UINT>(mTextures.size());
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+
 	for_each(mTextures.begin(), mTextures.end(), [&, index{ 0 }](auto& curTex) mutable {
 		auto& curTexResource = curTex->Resource;
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -81,6 +123,17 @@ void CubeMapApp::BuildDescriptorHeaps()
 		srvDesc.Texture2D.MostDetailedMip = 0;
 		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+
+		if (curTex->Filename.find(L"cube") != std::wstring::npos)
+		{
+			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+			srvDesc.TextureCube.MostDetailedMip = 0;
+			srvDesc.TextureCube.MipLevels = curTexResource->GetDesc().MipLevels;
+			srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
+			srvDesc.Format = curTexResource->GetDesc().Format;
+			mSkyTexHeapIndex = index;
+		}
+		
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc{ mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart() };
 		hCpuDesc.Offset(index++, mCbvSrvUavDescriptorSize);
 		md3dDevice->CreateShaderResourceView(curTex->Resource.Get(), &srvDesc, hCpuDesc);
