@@ -12,6 +12,7 @@
 
 #include "GraphicsHeader.hlsli"
 #include "LightingUtil.hlsli"
+#include "VertexInout.hlsli"
 
 float4 main(VertexOut pin) : SV_Target
 {
@@ -39,6 +40,11 @@ float4 main(VertexOut pin) : SV_Target
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW, pin.NormalW, toEyeW, shadowFactor);
     
     float4 litColor = ambient+directLight;
+    
+    float3 r = reflect(-toEyeW, pin.NormalW);
+    float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
+    float3 fresnelFactor = SchlickFresnel(fresnelR0, pin.NormalW, r);
+    litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
     
 #ifdef FOG
     float fogAmount = saturate((distToEye - gFogStart) / gFogRange);

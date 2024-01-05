@@ -12,7 +12,8 @@ struct MaterialData
     uint MatPad2;
 };
 
-Texture2D gDiffuseMap[4] : register(t0);
+TextureCube gCubeMap : register(t0);
+Texture2D gDiffuseMap[4] : register(t1);
 
 StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);
 
@@ -52,27 +53,4 @@ cbuffer PassCB : register(b1)
     float4 gAmbientLight;
     
     Light gLights[MaxLights];
-};
-
-//cbuffer Material : register(b2)
-//{
-//    float4 gDiffuseAlbedo;
-//    float3 gFresnelR0;
-//    float gRoughness;
-//    float4x4 gMatTranform;
-//};
-
-struct VertexIn
-{
-    float3 PosL : POSITION;
-    float3 NormalL : NORMAL;
-    float2 TexC : TEXCOORD;
-};
-
-struct VertexOut
-{
-    float4 PosH : SV_POSITION;
-    float3 PosW : POSITION;
-    float3 NormalW : NORMAL;
-    float2 TexC : TEXCOORD;
 };

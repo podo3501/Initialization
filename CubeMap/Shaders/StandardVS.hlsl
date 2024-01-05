@@ -1,4 +1,5 @@
 #include "GraphicsHeader.hlsli"
+#include "VertexInout.hlsli"
 
 VertexOut main( VertexIn vin )
 {

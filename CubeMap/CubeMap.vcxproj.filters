@@ -43,12 +43,24 @@
     <None Include="Shaders\LightingUtil.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Shaders\VertexInout_Sky.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\VertexInout.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Shaders\PixelShader.hlsl">
+    <FxCompile Include="Shaders\StandardVS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Shaders\VertexShader.hlsl">
+    <FxCompile Include="Shaders\OpaquePS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SkyVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SkyPS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

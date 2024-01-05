@@ -86,7 +86,8 @@ private:
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
-	void BuildCarGeometry();
+	void BuildShapeGeometry();
+	void BuildSkullGeometry();
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
@@ -113,6 +114,8 @@ private:
 	std::unordered_map<RenderLayer, std::vector<RenderItem*>> mRitemLayer;
 	RenderItem* mPickedRitem = nullptr;
 	FrameResource* mCurFrameRes = nullptr;
+
+	UINT mSkyTexHeapIndex = 0;
 	UINT mFrameResIdx = 0;
 
 	float mTheta = 1.5f * DirectX::XM_PI;
