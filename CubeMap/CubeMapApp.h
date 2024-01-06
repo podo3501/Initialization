@@ -40,21 +40,21 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
-	Highlight,
+	Sky,
 	Count
 };
 
 enum class GraphicsPSO : int
 {
 	Opaque = 0,
-	Highlight,
+	Sky,
 	Count
 };
 
 constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> GraphicsPSO_ALL
 {
 	GraphicsPSO::Opaque, 
-	GraphicsPSO::Highlight,
+	GraphicsPSO::Sky,
 };
 
 class CubeMapApp : public D3DApp
@@ -91,7 +91,7 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
-	void MakeHighlightDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();
 	void BuildRenderItems();

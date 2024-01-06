@@ -398,15 +398,6 @@ void CubeMapApp::BuildRenderItems()
 	auto MakeRenderItem = [&, objIdx{ 0 }](std::string&& geoName, std::string&& smName, std::string&& matName,
 		const XMMATRIX& world, const XMMATRIX& texTransform, RenderLayer renderLayer, bool visible = true) mutable {
 		auto renderItem = std::make_unique<RenderItem>();
-		if (smName.empty() == false)
-		{
-			auto& sm = mGeometries[geoName]->DrawArgs[smName];
-			renderItem->StartIndexLocation = sm.StartIndexLocation;
-			renderItem->BaseVertexLocation = sm.BaseVertexLocation;
-			renderItem->IndexCount = sm.IndexCount;
-			renderItem->BBounds = sm.BBounds;
-			renderItem->BSphere = sm.BSphere;
-		}
 		renderItem->Geo = mGeometries[geoName].get();
 		renderItem->Mat = mMaterials[matName].get();
 		renderItem->ObjCBIndex = objIdx++;
@@ -415,7 +406,31 @@ void CubeMapApp::BuildRenderItems()
 		XMStoreFloat4x4(&renderItem->TexTransform, texTransform);
 		renderItem->Visible = visible;
 		mRitemLayer[renderLayer].emplace_back(renderItem.get());
-		mAllRitems.emplace_back(std::move(renderItem));};
+		mAllRitems.emplace_back(std::move(renderItem));
+	};
+
+	MakeRenderItem("shapeGeo", "sphere", "sky", XMMatrixScaling(5000.0f, 5000.0f, 5000.0f), XMMatrixIdentity(), RenderLayer::Sky);
+	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
+		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
+	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f),
+		XMMatrixIdentity(), RenderLayer::Opaque);
+	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
+
+	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
+	for (auto i : Range(0, 5))
+	{
+		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i * 5.0f);
+		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i * 5.0f);
+
+		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i * 5.0f);
+		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
+
+		MakeRenderItem("shapeGeo", "cylinder", "bricks0", leftCylWorld, brickTexTransform, RenderLayer::Opaque);
+		MakeRenderItem("shapeGeo", "cylinder", "bricks0", rightCylWorld, brickTexTransform, RenderLayer::Opaque);
+
+		MakeRenderItem("shapeGeo", "sphere", "mirror0", leftSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
+		MakeRenderItem("shapeGeo", "sphere", "mirror0", rightSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
+	}
 }
 
 void CubeMapApp::BuildFrameResources()
@@ -453,23 +468,13 @@ void CubeMapApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 	inoutDesc->SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 }
 
-void CubeMapApp::MakeHighlightDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+void CubeMapApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
+	inoutDesc->RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	inoutDesc->DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-
-	D3D12_RENDER_TARGET_BLEND_DESC blendDesc;
-	blendDesc.BlendEnable = true;
-	blendDesc.LogicOpEnable = false;
-	blendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	blendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-	blendDesc.BlendOp = D3D12_BLEND_OP_ADD;
-	blendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
-	blendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
-	blendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
-	blendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
-	blendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-
-	inoutDesc->BlendState.RenderTarget[0] = blendDesc;
+	inoutDesc->pRootSignature = mRootSignature.Get();
+	inoutDesc->VS = GetShaderBytecode(mShaders, "skyVS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "skyPS");
 }
 
 void CubeMapApp::MakePSOPipelineState(GraphicsPSO psoType)
@@ -480,7 +485,7 @@ void CubeMapApp::MakePSOPipelineState(GraphicsPSO psoType)
 	switch (psoType)
 	{
 	case GraphicsPSO::Opaque:		break;
-	case GraphicsPSO::Highlight:	MakeHighlightDesc(&psoDesc);		break;
+	case GraphicsPSO::Sky:	MakeSkyDesc(&psoDesc);		break;
 	default: assert(!"wrong type");
 	}
 
@@ -540,14 +545,77 @@ XMMATRIX Inverse(XMFLOAT4X4& src) {	return Inverse(RvToLv(XMLoadFloat4x4(&src)))
 
 void CubeMapApp::UpdateObjectCBs(const GameTimer& gt)
 {
+	auto currObjectCB = mCurFrameRes->ObjectCB.get();
+	for (auto& e : mAllRitems)
+	{
+		if (e->NumFramesDirty <= 0)
+			continue;
+
+		ObjectConstants objConstants;
+		StoreMatrix4x4(objConstants.World, e->World);
+		StoreMatrix4x4(objConstants.TexTransform, e->TexTransform);
+		objConstants.MaterialIndex = e->Mat->MatCBIndex;
+
+		currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+
+		e->NumFramesDirty--;
+	}
 }
 
 void CubeMapApp::UpdateMaterialBuffer(const GameTimer& gt)
 {
+	auto currMaterialBuffer = mCurFrameRes->MaterialBuffer.get();
+	for (auto& e : mMaterials)
+	{
+		Material* mat = e.second.get();
+		if (mat->NumFramesDirty <= 0)
+			continue;
+
+		MaterialData matData;
+		matData.DiffuseAlbedo = mat->DiffuseAlbedo;
+		matData.FresnelR0 = mat->FresnelR0;
+		matData.Roughness = mat->Roughness;
+		matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+		StoreMatrix4x4(matData.MatTransform, mat->MatTransform);
+
+		currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
+
+		mat->NumFramesDirty--;
+	}
 }
 
 void CubeMapApp::UpdateMainPassCB(const GameTimer& gt)
 {
+	auto& passCB = mCurFrameRes->PassCB;
+
+	XMMATRIX view = mCamera.GetView();
+	XMMATRIX proj = mCamera.GetProj();
+
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+
+	PassConstants pc;
+	StoreMatrix4x4(pc.View, view);
+	StoreMatrix4x4(pc.InvView, Inverse(view));
+	StoreMatrix4x4(pc.Proj, proj);
+	StoreMatrix4x4(pc.InvProj, Inverse(proj));
+	StoreMatrix4x4(pc.ViewProj, viewProj);
+	StoreMatrix4x4(pc.InvViewProj, Inverse(viewProj));
+	pc.EyePosW = mCamera.GetPosition3f();
+	pc.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
+	pc.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
+	pc.NearZ = 1.0f;
+	pc.FarZ = 1000.0f;
+	pc.TotalTime = gt.TotalTime();
+	pc.DeltaTime = gt.DeltaTime();
+	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	pc.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	pc.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	pc.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	pc.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	pc.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	pc.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+
+	passCB->CopyData(0, pc);
 }
 
 void CubeMapApp::Update(const GameTimer& gt)
@@ -574,10 +642,75 @@ void CubeMapApp::DrawRenderItems(
 	ID3D12GraphicsCommandList* cmdList,
 	const std::vector<RenderItem*> ritems)
 {
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	auto objectCB = mCurFrameRes->ObjectCB->Resource();
+
+	for (auto& ri : ritems)
+	{
+		cmdList->IASetVertexBuffers(0, 1, &RvToLv(ri->Geo->VertexBufferView()));
+		cmdList->IASetIndexBuffer(&RvToLv(ri->Geo->IndexBufferView()));
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+	}
 }
 
 void CubeMapApp::Draw(const GameTimer& gt)
 {
+	auto cmdListAlloc = mCurFrameRes->CmdListAlloc;
+	ThrowIfFailed(cmdListAlloc->Reset());
+
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs[GraphicsPSO::Opaque].Get()));
+
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET)));
+
+	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	mCommandList->OMSetRenderTargets(1, &RvToLv(CurrentBackBufferView()), true, &RvToLv(DepthStencilView()));
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+	auto passCB = mCurFrameRes->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+
+	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+
+	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Sky].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Sky]);
+
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT)));
+
+	ThrowIfFailed(mCommandList->Close());
+
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	ThrowIfFailed(mSwapChain->Present(0, 0));
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
+	mCurFrameRes->Fence = ++mCurrentFence;
+
+	mCommandQueue->Signal(mFence.Get(), mCurrentFence);
 }
 
 void CubeMapApp::OnMouseDown(WPARAM btnState, int x, int y)
