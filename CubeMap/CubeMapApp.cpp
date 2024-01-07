@@ -398,7 +398,11 @@ void CubeMapApp::BuildRenderItems()
 	auto MakeRenderItem = [&, objIdx{ 0 }](std::string&& geoName, std::string&& smName, std::string&& matName,
 		const XMMATRIX& world, const XMMATRIX& texTransform, RenderLayer renderLayer, bool visible = true) mutable {
 		auto renderItem = std::make_unique<RenderItem>();
+		auto& sm = mGeometries[geoName]->DrawArgs[smName];
 		renderItem->Geo = mGeometries[geoName].get();
+		renderItem->StartIndexLocation = sm.StartIndexLocation;
+		renderItem->BaseVertexLocation = sm.BaseVertexLocation;
+		renderItem->IndexCount = sm.IndexCount;
 		renderItem->Mat = mMaterials[matName].get();
 		renderItem->ObjCBIndex = objIdx++;
 		renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
