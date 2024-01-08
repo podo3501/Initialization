@@ -68,6 +68,8 @@ public:
 	virtual bool Initialize() override;
 
 private:
+	virtual void CreateRtvAndDsvDescriptorHeaps() override;
+
 	virtual void OnResize() override;
 	virtual void Update(const GameTimer& gt) override;
 	virtual void Draw(const GameTimer& gt) override;
@@ -100,6 +102,8 @@ private:
 		const std::vector<RenderItem*> ritems);
 
 private:
+	CD3DX12_CPU_DESCRIPTOR_HANDLE mCubeDSV{};
+
 	std::vector<std::unique_ptr<Texture>> mTextures;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
