@@ -9,8 +9,10 @@
 #include "../Common/Camera.h"
 #include <map>
 
-class Waves;
+class CubeRenderTarget;
 struct FrameResource;
+
+const UINT CubeMapSize = 512;
 
 struct RenderItem
 {
@@ -103,6 +105,7 @@ private:
 
 private:
 	CD3DX12_CPU_DESCRIPTOR_HANDLE mCubeDSV{};
+	std::unique_ptr<CubeRenderTarget> mDynamicCubeMap = nullptr;
 
 	std::vector<std::unique_ptr<Texture>> mTextures;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
@@ -120,6 +123,7 @@ private:
 	FrameResource* mCurFrameRes = nullptr;
 
 	UINT mSkyTexHeapIndex = 0;
+	UINT mDynamicTexHeapIndex = 0;
 	UINT mFrameResIdx = 0;
 
 	float mTheta = 1.5f * DirectX::XM_PI;

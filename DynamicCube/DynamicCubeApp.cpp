@@ -4,6 +4,7 @@
 #include "../Common/UploadBuffer.h"
 #include "FrameResource.h"
 #include "../Common/GeometryGenerator.h"
+#include "CubeRenderTarget.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -33,6 +34,9 @@ bool DynamicCubeApp::Initialize()
 		XMFLOAT3(5.0f, 4.0f, -15.0f),
 		XMFLOAT3(0.0f, 1.0f, 0.0f),
 		XMFLOAT3(0.0f, 1.0f, 0.0f));
+
+	mDynamicCubeMap = std::make_unique<CubeRenderTarget>(md3dDevice.Get(), 
+		CubeMapSize, CubeMapSize, DXGI_FORMAT_R8G8B8A8_UNORM);
 
 	LoadTextures();
 	BuildRootSignature();
@@ -158,12 +162,28 @@ void DynamicCubeApp::BuildDescriptorHeaps()
 			srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
 			srvDesc.Format = curTexResource->GetDesc().Format;
 			mSkyTexHeapIndex = index;
+			mDynamicTexHeapIndex = mSkyTexHeapIndex + 1;
 		}
 		
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc{ mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart() };
 		hCpuDesc.Offset(index++, mCbvSrvUavDescriptorSize);
 		md3dDevice->CreateShaderResourceView(curTex->Resource.Get(), &srvDesc, hCpuDesc);
 		});
+	
+	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+	auto rtvCpuStart = mRtvHeap->GetCPUDescriptorHandleForHeapStart();
+
+	int rtvOffset = SwapChainBufferCount;
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cubeRtvHandles[6];
+	for (auto i : Range(0, (int)_countof(cubeRtvHandles)))
+		cubeRtvHandles[i] = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvCpuStart, rtvOffset + i, mRtvDescriptorSize);
+
+	mDynamicCubeMap->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mDynamicTexHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mDynamicTexHeapIndex, mCbvSrvUavDescriptorSize),
+		cubeRtvHandles);
 }
 
 void DynamicCubeApp::BuildShadersAndInputLayout()

@@ -130,10 +130,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CubeRenderTarget.cpp" />
     <ClCompile Include="DynamicCubeApp.cpp" />
     <ClCompile Include="FrameResource.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CubeRenderTarget.h" />
     <ClInclude Include="DynamicCubeApp.h" />
     <ClInclude Include="FrameResource.h" />
   </ItemGroup>
