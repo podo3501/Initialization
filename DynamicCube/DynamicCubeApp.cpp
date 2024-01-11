@@ -188,6 +188,18 @@ void DynamicCubeApp::BuildDescriptorHeaps()
 
 void DynamicCubeApp::BuildShadersAndInputLayout()
 {
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders/StandardVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders/OpaquePS.hlsl", nullptr, "main", "ps_5_1");
+
+	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/SkyVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/SkyPS.hlsl", nullptr, "main", "ps_5_1");
+
+	mInputLayout =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	};
 }
 
 void DynamicCubeApp::BuildShapeGeometry()
@@ -424,7 +436,8 @@ void DynamicCubeApp::BuildMaterials()
 	MakeMaterial("bricks0", 0, 0, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
 	MakeMaterial("tile0", 1, 1, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
 	MakeMaterial("mirror0", 2, 2, { 0.0f, 0.0f, 0.1f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("skullMat", 3, 2, { 0.8f, 0.8f, 0.8f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.2f);
+	MakeMaterial("sky", 3, 3, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
+	MakeMaterial("skullMat", 4, 2, { 0.8f, 0.8f, 0.8f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.2f);
 }
 
 void DynamicCubeApp::BuildRenderItems()
@@ -475,7 +488,7 @@ void DynamicCubeApp::BuildFrameResources()
 {
 	for (auto i : Range(0, gNumFrameResources))
 	{
-		auto frameRes = std::make_unique<FrameResource>(md3dDevice.Get(), 1,
+		auto frameRes = std::make_unique<FrameResource>(md3dDevice.Get(), 7,
 			static_cast<UINT>(mAllRitems.size()), static_cast<UINT>(mMaterials.size()));
 		mFrameResources.emplace_back(std::move(frameRes));
 	}
@@ -508,6 +521,11 @@ void DynamicCubeApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDes
 
 void DynamicCubeApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
+	inoutDesc->RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	inoutDesc->DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	inoutDesc->pRootSignature = mRootSignature.Get();
+	inoutDesc->VS = GetShaderBytecode(mShaders, "skyVS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "skyPS");
 }
 
 void DynamicCubeApp::MakePSOPipelineState(GraphicsPSO psoType)
@@ -642,11 +660,11 @@ void DynamicCubeApp::UpdateMainPassCB(const GameTimer& gt)
 	pc.DeltaTime = gt.DeltaTime();
 	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
 	pc.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	pc.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	pc.Lights[0].Strength = { 0.8f, 0.8f, 0.8f };
 	pc.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	pc.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	pc.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
 	pc.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	pc.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+	pc.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
 
 	passCB->CopyData(0, pc);
 }
