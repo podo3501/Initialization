@@ -693,6 +693,53 @@ void DynamicCubeApp::DrawRenderItems(
 	ID3D12GraphicsCommandList* cmdList,
 	const std::vector<RenderItem*> ritems)
 {
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+
+	auto objectCB = mCurFrameRes->ObjectCB->Resource();
+
+	for (auto i : Range(0, (int)ritems.size()))
+	{
+		auto ri = ritems[i];
+
+		cmdList->IASetVertexBuffers(0, 1, &RvToLv(ri->Geo->VertexBufferView()));
+		cmdList->IASetIndexBuffer(&RvToLv(ri->Geo->IndexBufferView()));
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+		
+		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
+
+		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+	}
+}
+
+void DynamicCubeApp::DrawSceneToCubeMap()
+{
+	mCommandList->RSSetViewports(1, &RvToLv(mDynamicCubeMap->Viewport()));
+	mCommandList->RSSetScissorRects(1, &RvToLv(mDynamicCubeMap->ScissorRect()));
+
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(mDynamicCubeMap->Resource(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET)));
+
+	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+
+	for (auto i : Range(0, 6))
+	{
+		mCommandList->ClearRenderTargetView(mDynamicCubeMap->Rtv(i), Colors::LightSteelBlue, 0, nullptr);
+		mCommandList->ClearDepthStencilView(mCubeDSV, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+		mCommandList->OMSetRenderTargets(1, &RvToLv(mDynamicCubeMap->Rtv(i)), true, &mCubeDSV);
+
+		auto passCB = mCurFrameRes->PassCB->Resource();
+		D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + (1 + i) * passCBByteSize;
+		mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
+
+		mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Opaque].Get());
+	}
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(mDynamicCubeMap->Resource(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ)));
 }
 
 void DynamicCubeApp::Draw(const GameTimer& gt)
@@ -701,6 +748,22 @@ void DynamicCubeApp::Draw(const GameTimer& gt)
 	ThrowIfFailed(cmdListAlloc->Reset());
 
 	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs[GraphicsPSO::Opaque].Get()));
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+
+	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+	DrawSceneToCubeMap();
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -712,11 +775,6 @@ void DynamicCubeApp::Draw(const GameTimer& gt)
 	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &RvToLv(CurrentBackBufferView()), true, &RvToLv(DepthStencilView()));
-
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
 
 

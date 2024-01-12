@@ -99,6 +99,7 @@ private:
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();
 	void BuildRenderItems();
+	void DrawSceneToCubeMap();
 	void DrawRenderItems(
 		ID3D12GraphicsCommandList* cmdList,
 		const std::vector<RenderItem*> ritems);
