@@ -42,6 +42,7 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	OpaqueDynamicReflectors,
 	Sky,
 	Count
 };

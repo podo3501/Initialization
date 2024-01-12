@@ -461,10 +461,12 @@ void DynamicCubeApp::BuildRenderItems()
 	};
 
 	MakeRenderItem("shapeGeo", "sphere", "sky", XMMatrixScaling(5000.0f, 5000.0f, 5000.0f), XMMatrixIdentity(), RenderLayer::Sky);
-	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
-		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
 	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f),
 		XMMatrixIdentity(), RenderLayer::Opaque);
+	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
+		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
+	MakeRenderItem("shapeGeo", "sphere", "mirror0", XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
+		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::OpaqueDynamicReflectors);
 	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
@@ -736,6 +738,9 @@ void DynamicCubeApp::DrawSceneToCubeMap()
 
 		DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
 
+		mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Sky].Get());
+		DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Sky]);
+
 		mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Opaque].Get());
 	}
 	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(mDynamicCubeMap->Resource(),
@@ -776,10 +781,19 @@ void DynamicCubeApp::Draw(const GameTimer& gt)
 
 	mCommandList->OMSetRenderTargets(1, &RvToLv(CurrentBackBufferView()), true, &RvToLv(DepthStencilView()));
 
+	auto passCB = mCurFrameRes->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
+	CD3DX12_GPU_DESCRIPTOR_HANDLE dynamicTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	dynamicTexDescriptor.Offset(mSkyTexHeapIndex + 1, mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(3, dynamicTexDescriptor);
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::OpaqueDynamicReflectors]);
 
+	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
 
-
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Sky].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Sky]);
 
 	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT)));
