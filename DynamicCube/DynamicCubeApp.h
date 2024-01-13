@@ -118,10 +118,10 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+	RenderItem* mSkullRitem = nullptr;
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
-	//std::vector<RenderItem*> mOpaqueRitems;
 	std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 	std::unordered_map<GraphicsPSO, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
 	std::unordered_map<RenderLayer, std::vector<RenderItem*>> mRitemLayer;

@@ -512,7 +512,8 @@ void DynamicCubeApp::BuildMaterials()
 void DynamicCubeApp::BuildRenderItems()
 {
 	auto MakeRenderItem = [&, objIdx{ 0 }](std::string&& geoName, std::string&& smName, std::string&& matName,
-		const XMMATRIX& world, const XMMATRIX& texTransform, RenderLayer renderLayer, bool visible = true) mutable {
+		const XMMATRIX& world, const XMMATRIX& texTransform, RenderLayer renderLayer, bool visible = true, 
+		RenderItem** outRenderItem = nullptr) mutable {
 		auto renderItem = std::make_unique<RenderItem>();
 		auto& sm = mGeometries[geoName]->DrawArgs[smName];
 		renderItem->Geo = mGeometries[geoName].get();
@@ -525,12 +526,14 @@ void DynamicCubeApp::BuildRenderItems()
 		XMStoreFloat4x4(&renderItem->World, world);
 		XMStoreFloat4x4(&renderItem->TexTransform, texTransform);
 		renderItem->Visible = visible;
+
+		if (outRenderItem != nullptr) (*outRenderItem) = renderItem.get();
 		mRitemLayer[renderLayer].emplace_back(renderItem.get());
 		mAllRitems.emplace_back(std::move(renderItem));
 	};
 
 	MakeRenderItem("shapeGeo", "sphere", "sky", XMMatrixScaling(5000.0f, 5000.0f, 5000.0f), XMMatrixIdentity(), RenderLayer::Sky);
-	//MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Opaque);
+	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Opaque, true, &mSkullRitem);
 	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
 		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
 	MakeRenderItem("shapeGeo", "sphere", "mirror0", XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
@@ -768,6 +771,13 @@ void DynamicCubeApp::UpdateMainPassCB(const GameTimer& gt)
 void DynamicCubeApp::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
+
+	XMMATRIX skullScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
+	XMMATRIX skullOffset = XMMatrixTranslation(3.0f, 2.0f, 0.0f);
+	XMMATRIX skullLocalRotate = XMMatrixRotationY(2.0f * gt.TotalTime());
+	XMMATRIX skullGlobalRotate = XMMatrixRotationY(0.5f * gt.TotalTime());
+	XMStoreFloat4x4(&mSkullRitem->World, skullScale * skullLocalRotate * skullOffset * skullGlobalRotate);
+	mSkullRitem->NumFramesDirty = gNumFrameResources;
 
 	mFrameResIdx = (mFrameResIdx + 1) % gNumFrameResources;
 	mCurFrameRes = mFrameResources[mFrameResIdx].get();
