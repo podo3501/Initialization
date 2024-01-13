@@ -2,7 +2,6 @@
 #include "../Common/d3dUtil.h"
 #include "../Common/Util.h"
 #include "../Common/UploadBuffer.h"
-#include "FrameResource.h"
 #include "../Common/GeometryGenerator.h"
 #include "CubeRenderTarget.h"
 
@@ -637,6 +636,15 @@ void DynamicCubeApp::UpdateMaterialBuffer(const GameTimer& gt)
 	}
 }
 
+//void DynamicCubeMapApp::UpdateCubeMapFacePassCBs()
+//{
+//	for (auto i : Range(0, 6))
+//	{
+//		PassConstants cubeFacePassCB = mMainPassCB;
+//
+//	}
+//}
+
 void DynamicCubeApp::UpdateMainPassCB(const GameTimer& gt)
 {
 	auto& passCB = mCurFrameRes->PassCB;
@@ -646,29 +654,30 @@ void DynamicCubeApp::UpdateMainPassCB(const GameTimer& gt)
 
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
-	PassConstants pc;
-	StoreMatrix4x4(pc.View, view);
-	StoreMatrix4x4(pc.InvView, Inverse(view));
-	StoreMatrix4x4(pc.Proj, proj);
-	StoreMatrix4x4(pc.InvProj, Inverse(proj));
-	StoreMatrix4x4(pc.ViewProj, viewProj);
-	StoreMatrix4x4(pc.InvViewProj, Inverse(viewProj));
-	pc.EyePosW = mCamera.GetPosition3f();
-	pc.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
-	pc.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
-	pc.NearZ = 1.0f;
-	pc.FarZ = 1000.0f;
-	pc.TotalTime = gt.TotalTime();
-	pc.DeltaTime = gt.DeltaTime();
-	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	pc.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	pc.Lights[0].Strength = { 0.8f, 0.8f, 0.8f };
-	pc.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	pc.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
-	pc.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	pc.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+	StoreMatrix4x4(mMainPassCB.View, view);
+	StoreMatrix4x4(mMainPassCB.InvView, Inverse(view));
+	StoreMatrix4x4(mMainPassCB.Proj, proj);
+	StoreMatrix4x4(mMainPassCB.InvProj, Inverse(proj));
+	StoreMatrix4x4(mMainPassCB.ViewProj, viewProj);
+	StoreMatrix4x4(mMainPassCB.InvViewProj, Inverse(viewProj));
+	mMainPassCB.EyePosW = mCamera.GetPosition3f();
+	mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
+	mMainPassCB.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
+	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.TotalTime = gt.TotalTime();
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mMainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[0].Strength = { 0.8f, 0.8f, 0.8f };
+	mMainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
+	mMainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
 
-	passCB->CopyData(0, pc);
+	passCB->CopyData(0, mMainPassCB);
+
+	//UpdateCubeMapFacePassCBs();
 }
 
 void DynamicCubeApp::Update(const GameTimer& gt)
