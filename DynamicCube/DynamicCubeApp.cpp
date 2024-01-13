@@ -718,12 +718,12 @@ void DynamicCubeApp::UpdateCubeMapFacePassCBs()
 		XMMATRIX proj = mCubeMapCamera[i].GetProj();
 		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
-		StoreMatrix4x4(mMainPassCB.View, view);
-		StoreMatrix4x4(mMainPassCB.InvView, Inverse(view));
-		StoreMatrix4x4(mMainPassCB.Proj, proj);
-		StoreMatrix4x4(mMainPassCB.InvProj, Inverse(proj));
-		StoreMatrix4x4(mMainPassCB.ViewProj, viewProj);
-		StoreMatrix4x4(mMainPassCB.InvViewProj, Inverse(viewProj));
+		StoreMatrix4x4(cubeFacePassCB.View, view);
+		StoreMatrix4x4(cubeFacePassCB.InvView, Inverse(view));
+		StoreMatrix4x4(cubeFacePassCB.Proj, proj);
+		StoreMatrix4x4(cubeFacePassCB.InvProj, Inverse(proj));
+		StoreMatrix4x4(cubeFacePassCB.ViewProj, viewProj);
+		StoreMatrix4x4(cubeFacePassCB.InvViewProj, Inverse(viewProj));
 		cubeFacePassCB.EyePosW = mCubeMapCamera[i].GetPosition3f();
 		cubeFacePassCB.RenderTargetSize = XMFLOAT2((float)CubeMapSize, (float)CubeMapSize);
 		cubeFacePassCB.InvRenderTargetSize = XMFLOAT2(1.0f / CubeMapSize, 1.0f / CubeMapSize);
