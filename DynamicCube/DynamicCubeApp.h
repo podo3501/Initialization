@@ -92,6 +92,7 @@ private:
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
+	void BuildCubeDepthStencil();
 	void BuildShadersAndInputLayout();
 	void BuildShapeGeometry();
 	void BuildSkullGeometry();
@@ -110,6 +111,7 @@ private:
 private:
 	CD3DX12_CPU_DESCRIPTOR_HANDLE mCubeDSV{};
 	std::unique_ptr<CubeRenderTarget> mDynamicCubeMap = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> mCubeDepthStencilBuffer = nullptr;
 
 	std::vector<std::unique_ptr<Texture>> mTextures;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
