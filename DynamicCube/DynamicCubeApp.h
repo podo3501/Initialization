@@ -85,8 +85,10 @@ private:
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
+	void UpdateCubeMapFacePassCBs();
 	void UpdateMainPassCB(const GameTimer& gt);
 
+	void BuildCubeFaceCamera(float x, float y, float z);
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
@@ -136,7 +138,8 @@ private:
 	float mSunTheta = 1.25f * DirectX::XM_PI;
 	float mSunPhi = DirectX::XM_PIDIV4;
 
-	POINT mLastMousePos;
+	POINT mLastMousePos{};
 
-	Camera mCamera;
+	Camera mCamera{};
+	Camera mCubeMapCamera[6]{};
 };

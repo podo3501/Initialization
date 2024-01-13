@@ -34,6 +34,8 @@ bool DynamicCubeApp::Initialize()
 		XMFLOAT3(0.0f, 1.0f, 0.0f),
 		XMFLOAT3(0.0f, 1.0f, 0.0f));
 
+	BuildCubeFaceCamera(0.0f, 2.0f, 0.0f);
+
 	mDynamicCubeMap = std::make_unique<CubeRenderTarget>(md3dDevice.Get(), 
 		CubeMapSize, CubeMapSize, DXGI_FORMAT_R8G8B8A8_UNORM);
 
@@ -55,6 +57,43 @@ bool DynamicCubeApp::Initialize()
 	FlushCommandQueue();
 
 	return true;
+}
+
+void DynamicCubeApp::BuildCubeFaceCamera(float x, float y, float z)
+{
+	// Generate the cube map about the given position.
+	XMFLOAT3 center(x, y, z);
+	XMFLOAT3 worldUp(0.0f, 1.0f, 0.0f);
+
+	// Look along each coordinate axis.
+	XMFLOAT3 targets[6] =
+	{
+		XMFLOAT3(x + 1.0f, y, z), // +X
+		XMFLOAT3(x - 1.0f, y, z), // -X
+		XMFLOAT3(x, y + 1.0f, z), // +Y
+		XMFLOAT3(x, y - 1.0f, z), // -Y
+		XMFLOAT3(x, y, z + 1.0f), // +Z
+		XMFLOAT3(x, y, z - 1.0f)  // -Z
+	};
+
+	// Use world up vector (0,1,0) for all directions except +Y/-Y.  In these cases, we
+	// are looking down +Y or -Y, so we need a different "up" vector.
+	XMFLOAT3 ups[6] =
+	{
+		XMFLOAT3(0.0f, 1.0f, 0.0f),  // +X
+		XMFLOAT3(0.0f, 1.0f, 0.0f),  // -X
+		XMFLOAT3(0.0f, 0.0f, -1.0f), // +Y
+		XMFLOAT3(0.0f, 0.0f, +1.0f), // -Y
+		XMFLOAT3(0.0f, 1.0f, 0.0f),	 // +Z
+		XMFLOAT3(0.0f, 1.0f, 0.0f)	 // -Z
+	};
+
+	for (int i = 0; i < 6; ++i)
+	{
+		mCubeMapCamera[i].LookAt(center, targets[i], ups[i]);
+		mCubeMapCamera[i].SetLens(0.5f * XM_PI, 1.0f, 0.1f, 1000.0f);
+		mCubeMapCamera[i].UpdateViewMatrix();
+	}
 }
 
 void DynamicCubeApp::CreateRtvAndDsvDescriptorHeaps()
@@ -636,14 +675,31 @@ void DynamicCubeApp::UpdateMaterialBuffer(const GameTimer& gt)
 	}
 }
 
-//void DynamicCubeMapApp::UpdateCubeMapFacePassCBs()
-//{
-//	for (auto i : Range(0, 6))
-//	{
-//		PassConstants cubeFacePassCB = mMainPassCB;
-//
-//	}
-//}
+void DynamicCubeApp::UpdateCubeMapFacePassCBs()
+{
+	for (auto i : Range(0, 6))
+	{
+		PassConstants cubeFacePassCB = mMainPassCB;
+
+		XMMATRIX view = mCubeMapCamera[i].GetView();
+		XMMATRIX proj = mCubeMapCamera[i].GetProj();
+		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+
+		StoreMatrix4x4(mMainPassCB.View, view);
+		StoreMatrix4x4(mMainPassCB.InvView, Inverse(view));
+		StoreMatrix4x4(mMainPassCB.Proj, proj);
+		StoreMatrix4x4(mMainPassCB.InvProj, Inverse(proj));
+		StoreMatrix4x4(mMainPassCB.ViewProj, viewProj);
+		StoreMatrix4x4(mMainPassCB.InvViewProj, Inverse(viewProj));
+		cubeFacePassCB.EyePosW = mCubeMapCamera[i].GetPosition3f();
+		cubeFacePassCB.RenderTargetSize = XMFLOAT2((float)CubeMapSize, (float)CubeMapSize);
+		cubeFacePassCB.InvRenderTargetSize = XMFLOAT2(1.0f / CubeMapSize, 1.0f / CubeMapSize);
+
+		auto currPassCB = mCurFrameRes->PassCB.get();
+
+		currPassCB->CopyData(1 + i, cubeFacePassCB);
+	}
+}
 
 void DynamicCubeApp::UpdateMainPassCB(const GameTimer& gt)
 {
@@ -651,7 +707,6 @@ void DynamicCubeApp::UpdateMainPassCB(const GameTimer& gt)
 
 	XMMATRIX view = mCamera.GetView();
 	XMMATRIX proj = mCamera.GetProj();
-
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
 	StoreMatrix4x4(mMainPassCB.View, view);
@@ -677,7 +732,7 @@ void DynamicCubeApp::UpdateMainPassCB(const GameTimer& gt)
 
 	passCB->CopyData(0, mMainPassCB);
 
-	//UpdateCubeMapFacePassCBs();
+	UpdateCubeMapFacePassCBs();
 }
 
 void DynamicCubeApp::Update(const GameTimer& gt)
