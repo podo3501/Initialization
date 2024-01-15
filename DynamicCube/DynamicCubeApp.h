@@ -43,6 +43,7 @@ enum class RenderLayer : int
 {
 	Opaque = 0,
 	OpaqueDynamicReflectors,
+	OpaqueRefract,
 	Sky,
 	Count
 };
@@ -50,13 +51,15 @@ enum class RenderLayer : int
 enum class GraphicsPSO : int
 {
 	Opaque = 0,
+	OpaqueRefract,
 	Sky,
 	Count
 };
 
 constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> GraphicsPSO_ALL
 {
-	GraphicsPSO::Opaque, 
+	GraphicsPSO::Opaque,
+	GraphicsPSO::OpaqueRefract,
 	GraphicsPSO::Sky,
 };
 
@@ -99,6 +102,7 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeOpaqueRefract(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();

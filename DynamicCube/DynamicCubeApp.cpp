@@ -259,6 +259,7 @@ void DynamicCubeApp::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders/StandardVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders/OpaquePS.hlsl", nullptr, "main", "ps_5_1");
+	mShaders["refractPS"] = d3dUtil::CompileShader(L"Shaders/RefractPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/SkyVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/SkyPS.hlsl", nullptr, "main", "ps_5_1");
@@ -537,7 +538,7 @@ void DynamicCubeApp::BuildRenderItems()
 	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
 		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
 	MakeRenderItem("shapeGeo", "sphere", "mirror0", XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
-		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::OpaqueDynamicReflectors);
+		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::OpaqueRefract);
 	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
@@ -592,6 +593,11 @@ void DynamicCubeApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDes
 	inoutDesc->SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 }
 
+void DynamicCubeApp::MakeOpaqueRefract(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	inoutDesc->PS = GetShaderBytecode(mShaders, "refractPS");
+}
+
 void DynamicCubeApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
 	inoutDesc->RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -609,7 +615,8 @@ void DynamicCubeApp::MakePSOPipelineState(GraphicsPSO psoType)
 	switch (psoType)
 	{
 	case GraphicsPSO::Opaque:		break;
-	case GraphicsPSO::Sky:	MakeSkyDesc(&psoDesc);		break;
+	case GraphicsPSO::OpaqueRefract:	MakeOpaqueRefract(&psoDesc);		break;
+	case GraphicsPSO::Sky:						MakeSkyDesc(&psoDesc);					break;
 	default: assert(!"wrong type");
 	}
 
@@ -891,8 +898,11 @@ void DynamicCubeApp::Draw(const GameTimer& gt)
 	CD3DX12_GPU_DESCRIPTOR_HANDLE dynamicTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	dynamicTexDescriptor.Offset(mSkyTexHeapIndex + 1, mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(3, dynamicTexDescriptor);
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::OpaqueDynamicReflectors]);
 
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::OpaqueRefract].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::OpaqueRefract]);
+
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Opaque].Get());
 	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
 
