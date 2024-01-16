@@ -9,6 +9,7 @@ VertexOut main( VertexIn vin )
     vout.PosW = posW.xyz;
     vout.PosH = mul(posW, gViewProj);
     vout.NormalW = mul(vin.NormalL, (float3x3)gWorld);
+    vout.TangentW = mul(vin.TangentU, (float3x3)gWorld);
     
     MaterialData matData = gMaterialData[gMaterialIndex];
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);

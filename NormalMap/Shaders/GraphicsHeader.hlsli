@@ -7,13 +7,13 @@ struct MaterialData
     float Roughness;
     float4x4 MatTransform;
     uint DiffuseMapIndex;
-    uint MatPad0;
+    uint NormalMapIndex;
     uint MatPad1;
     uint MatPad2;
 };
 
 TextureCube gCubeMap : register(t0);
-Texture2D gDiffuseMap[4] : register(t1);
+Texture2D gTextureMaps[10] : register(t1);
 
 StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);
 
