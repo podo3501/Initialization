@@ -198,7 +198,7 @@ struct MeshGeometry
 	// Use this container to define the Submesh geometries so we can draw
 	// the Submeshes individually.
 	std::unordered_map<std::string, SubmeshGeometry> DrawArgs;
-
+    
 	D3D12_VERTEX_BUFFER_VIEW VertexBufferView()const
 	{
 		D3D12_VERTEX_BUFFER_VIEW vbv;
@@ -208,7 +208,7 @@ struct MeshGeometry
 
 		return vbv;
 	}
-
+    
     /*D3D12_VERTEX_BUFFER_VIEW ColorBufferView()const
     {
         D3D12_VERTEX_BUFFER_VIEW cbv;

@@ -60,6 +60,8 @@ void NormalMapApp::LoadTextures()
 		L"tile_nmap.dds",
 		L"white1x1.dds",
 		L"default_nmap.dds",
+		L"waves0.dds",
+		L"waves1.dds",
 		L"snowcube1024.dds"
 	};
 	
@@ -302,7 +304,9 @@ void NormalMapApp::BuildMaterials()
 	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
 	MakeMaterial("tile0", 2, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
 	MakeMaterial("mirror0", 3, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("sky", 4, 6, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
+	MakeMaterial("wave0", 4, 6, 6, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.0f);
+	MakeMaterial("wave1", 5, 7, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.0f);
+	MakeMaterial("sky", 6, 8, 9, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
 }
 
 void NormalMapApp::BuildRenderItems()
@@ -330,7 +334,7 @@ void NormalMapApp::BuildRenderItems()
 		XMMatrixScaling(1.0f, 0.5f, 1.0f), RenderLayer::Opaque);
 	MakeRenderItem("shapeGeo", "sphere", "mirror0", XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
 		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
-	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
+	MakeRenderItem("shapeGeo", "grid", "wave1", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Wave);
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
 	for (auto i : Range(0, 5))
@@ -401,6 +405,7 @@ void NormalMapApp::MakePSOPipelineState(GraphicsPSO psoType)
 	switch (psoType)
 	{
 	case GraphicsPSO::Opaque:		break;
+	case GraphicsPSO::Wave:			break;
 	case GraphicsPSO::Sky:	MakeSkyDesc(&psoDesc);		break;
 	default: assert(!"wrong type");
 	}
@@ -449,15 +454,23 @@ void NormalMapApp::OnKeyboardInput(const GameTimer& gt)
 	mCamera.UpdateViewMatrix();
 }
 
-void NormalMapApp::AnimateMaterials(const GameTimer& gt)
-{
-}
-
 void StoreMatrix4x4(XMFLOAT4X4& dest, XMFLOAT4X4& src) { XMStoreFloat4x4(&dest, XMMatrixTranspose(XMLoadFloat4x4(&src))); }
 void StoreMatrix4x4(XMFLOAT4X4& dest, XMMATRIX src) { XMStoreFloat4x4(&dest, XMMatrixTranspose(src)); }
 XMMATRIX Multiply(XMFLOAT4X4& m1, XMFLOAT4X4 m2) { return XMMatrixMultiply(XMLoadFloat4x4(&m1), XMLoadFloat4x4(&m2)); }
 XMMATRIX Inverse(XMMATRIX& m) { return XMMatrixInverse(nullptr, m); }
 XMMATRIX Inverse(XMFLOAT4X4& src) {	return Inverse(RvToLv(XMLoadFloat4x4(&src))); }
+
+void NormalMapApp::AnimateMaterials(const GameTimer& gt)
+{
+	float animSpeed = 0.04f;
+
+	auto currObjectCB = mCurFrameRes->ObjectCB.get();
+	RenderItem* pWave = *(mRitemLayer[RenderLayer::Wave].begin());
+	XMMATRIX origin = XMLoadFloat4x4(&pWave->TexTransform);
+	XMMATRIX translation = XMMatrixMultiply(origin,  XMMatrixTranslation(gt.DeltaTime() * -animSpeed, 0.0f, 0.0f));
+	XMStoreFloat4x4(&pWave->TexTransform, translation);
+	pWave->NumFramesDirty = gNumFrameResources;
+}
 
 void NormalMapApp::UpdateObjectCBs(const GameTimer& gt)
 {
@@ -610,6 +623,9 @@ void NormalMapApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Wave].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Wave]);
 
 	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Sky].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Sky]);

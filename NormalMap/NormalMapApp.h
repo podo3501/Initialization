@@ -40,6 +40,7 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	Wave,
 	Sky,
 	Count
 };
@@ -47,13 +48,15 @@ enum class RenderLayer : int
 enum class GraphicsPSO : int
 {
 	Opaque = 0,
+	Wave,
 	Sky,
 	Count
 };
 
 constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> GraphicsPSO_ALL
 {
-	GraphicsPSO::Opaque, 
+	GraphicsPSO::Opaque,
+	GraphicsPSO::Wave,
 	GraphicsPSO::Sky,
 };
 
