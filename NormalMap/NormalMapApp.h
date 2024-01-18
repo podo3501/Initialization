@@ -93,6 +93,7 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeWaveDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();

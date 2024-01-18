@@ -84,8 +84,8 @@ void NormalMapApp::BuildRootSignature()
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &cubeTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &cubeTexTable, D3D12_SHADER_VISIBILITY_ALL);
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_ALL);
 
 	auto staticSamplers = d3dUtil::GetStaticSamplers();
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc{
@@ -148,6 +148,11 @@ void NormalMapApp::BuildShadersAndInputLayout()
 
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/SkyVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/SkyPS.hlsl", nullptr, "main", "ps_5_1");
+
+	mShaders["waveVS"] = d3dUtil::CompileShader(L"Shaders/WaveVS.hlsl", nullptr, "main", "vs_5_1");
+	//mShaders["waveHS"] = d3dUtil::CompileShader(L"Shaders/WaveHS.hlsl", nullptr, "main", "hs_5_1");
+	//mShaders["waveDS"] = d3dUtil::CompileShader(L"Shaders/WaveDS.hlsl", nullptr, "main", "ds_5_1");
+	mShaders["wavePS"] = d3dUtil::CompileShader(L"Shaders/WavePS.hlsl", nullptr, "main", "ps_5_1");
 
 	mInputLayout =
 	{
@@ -304,8 +309,8 @@ void NormalMapApp::BuildMaterials()
 	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
 	MakeMaterial("tile0", 2, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
 	MakeMaterial("mirror0", 3, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("wave0", 4, 6, 6, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.0f);
-	MakeMaterial("wave1", 5, 7, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.0f);
+	MakeMaterial("wave0", 4, 6, 7, { 0.0f, 0.3f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
+	//MakeMaterial("wave1", 5, 7, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.0f);
 	MakeMaterial("sky", 6, 8, 9, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
 }
 
@@ -334,7 +339,7 @@ void NormalMapApp::BuildRenderItems()
 		XMMatrixScaling(1.0f, 0.5f, 1.0f), RenderLayer::Opaque);
 	MakeRenderItem("shapeGeo", "sphere", "mirror0", XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 2.0f, 0.0f),
 		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
-	MakeRenderItem("shapeGeo", "grid", "wave1", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Wave);
+	MakeRenderItem("shapeGeo", "grid", "wave0", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Wave);
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
 	for (auto i : Range(0, 5))
@@ -397,6 +402,15 @@ void NormalMapApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 	inoutDesc->PS = GetShaderBytecode(mShaders, "skyPS");
 }
 
+void NormalMapApp::MakeWaveDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	//inoutDesc->RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	inoutDesc->VS = GetShaderBytecode(mShaders, "waveVS");
+	//inoutDesc->HS = GetShaderBytecode(mShaders, "waveHS");
+	//inoutDesc->DS = GetShaderBytecode(mShaders, "waveDS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "wavePS");
+}
+
 void NormalMapApp::MakePSOPipelineState(GraphicsPSO psoType)
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
@@ -404,9 +418,9 @@ void NormalMapApp::MakePSOPipelineState(GraphicsPSO psoType)
 
 	switch (psoType)
 	{
-	case GraphicsPSO::Opaque:		break;
-	case GraphicsPSO::Wave:			break;
-	case GraphicsPSO::Sky:	MakeSkyDesc(&psoDesc);		break;
+	case GraphicsPSO::Opaque:	break;
+	case GraphicsPSO::Wave:		MakeWaveDesc(&psoDesc);	break;
+	case GraphicsPSO::Sky:			MakeSkyDesc(&psoDesc);		break;
 	default: assert(!"wrong type");
 	}
 
@@ -462,14 +476,14 @@ XMMATRIX Inverse(XMFLOAT4X4& src) {	return Inverse(RvToLv(XMLoadFloat4x4(&src)))
 
 void NormalMapApp::AnimateMaterials(const GameTimer& gt)
 {
-	float animSpeed = 0.04f;
+	//float animSpeed = 0.04f;
 
-	auto currObjectCB = mCurFrameRes->ObjectCB.get();
-	RenderItem* pWave = *(mRitemLayer[RenderLayer::Wave].begin());
-	XMMATRIX origin = XMLoadFloat4x4(&pWave->TexTransform);
-	XMMATRIX translation = XMMatrixMultiply(origin,  XMMatrixTranslation(gt.DeltaTime() * -animSpeed, 0.0f, 0.0f));
-	XMStoreFloat4x4(&pWave->TexTransform, translation);
-	pWave->NumFramesDirty = gNumFrameResources;
+	//auto currObjectCB = mCurFrameRes->ObjectCB.get();
+	//RenderItem* pWave = *(mRitemLayer[RenderLayer::Wave].begin());
+	//XMMATRIX origin = XMLoadFloat4x4(&pWave->TexTransform);
+	//XMMATRIX translation = XMMatrixMultiply(origin,  XMMatrixTranslation(gt.DeltaTime() * -animSpeed, 0.0f, 0.0f));
+	//XMStoreFloat4x4(&pWave->TexTransform, translation);
+	//pWave->NumFramesDirty = gNumFrameResources;
 }
 
 void NormalMapApp::UpdateObjectCBs(const GameTimer& gt)
