@@ -167,7 +167,7 @@ void NormalMapApp::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 120, 80);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
@@ -309,7 +309,7 @@ void NormalMapApp::BuildMaterials()
 	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
 	MakeMaterial("tile0", 2, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
 	MakeMaterial("mirror0", 3, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("wave0", 4, 6, 7, { 0.0f, 0.3f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
+	MakeMaterial("wave0", 4, 6, 7, { 0.0f, 0.3f, 1.0f, 0.3f }, { 0.2f, 0.2f, 0.2f }, 0.2f);
 	//MakeMaterial("wave1", 5, 7, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.0f);
 	MakeMaterial("sky", 6, 8, 9, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
 }

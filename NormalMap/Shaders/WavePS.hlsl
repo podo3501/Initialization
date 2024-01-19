@@ -40,10 +40,15 @@ float4 main(VertexOut pin) : SV_Target
     
     pin.NormalW = normalize(pin.NormalW);
     
-    float4 normalMapSample = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
-    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.TangentW);
+    float3 normalMapSample0 = gTextureMaps[diffuseTexIndex].Sample(gsamAnisotropicWrap, pin.TexC0).rgb;
+    float3 bumpedNormalW0 = NormalSampleToWorldSpace(normalMapSample0, pin.NormalW, pin.TangentW);
     
-    bumpedNormalW = pin.NormalW;
+    float3 normalMapSample1 = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC1).rgb;
+    float3 bumpedNormalW1 = NormalSampleToWorldSpace(normalMapSample1, pin.NormalW, pin.TangentW);
+    
+    float3 bumpedNormalW = normalize(bumpedNormalW0 + bumpedNormalW1);
+    
+    //bumpedNormalW = pin.NormalW;
     
     //diffuseAlbedo *= gTextureMaps[diffuseTexIndex].Sample(gsamAnisotropicWrap, pin.TexC);
     
@@ -55,7 +60,7 @@ float4 main(VertexOut pin) : SV_Target
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     
     float4 ambient = gAmbientLight * diffuseAlbedo;
-    const float shininess = (1.0f - roughness);// * normalMapSample.a;
+    const float shininess = (1.0f - roughness);// * ((normalMapSample0.a + normalMapSample1.a) / 2.0f);
     
     float3 shadowFactor = 1.0f;
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
@@ -63,10 +68,10 @@ float4 main(VertexOut pin) : SV_Target
     
     float4 litColor = ambient+directLight;
     
-    float3 r = reflect(-toEyeW, bumpedNormalW);
-    float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
-    float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
-    litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
+    //float3 r = reflect(-toEyeW, bumpedNormalW);
+    //float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
+    //float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
+    //litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
     
 #ifdef FOG
     float fogAmount = saturate((distToEye - gFogStart) / gFogRange);

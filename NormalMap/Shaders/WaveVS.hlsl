@@ -12,7 +12,7 @@ VertexOut main( VertexIn vin )
     float4x4 moveTexTransform0 = gTexTransform;
     float4x4 moveTexTransform1 = gTexTransform;
     moveTexTransform0._41 += gTotalTime * -0.04f;
-    moveTexTransform1._42 += gTotalTime * -0.04f;
+    moveTexTransform1._42 += gTotalTime * 0.02f;
     
     float2 texC0 = mul(mul(float4(vin.TexC, 0.0f, 1.0f), moveTexTransform0), matData.MatTransform).xy;
     float2 texC1 = mul(mul(float4(vin.TexC, 0.0f, 1.0f), moveTexTransform1), matData.MatTransform).xy;
@@ -23,8 +23,8 @@ VertexOut main( VertexIn vin )
     float3 posL = vin.PosL;
     posL.y = normalMapSample0.y + normalMapSample1.y;
     
-    //vout.TexC = mul(texC, matData.MatTransform).xy;
-    vout.TexC = texC0;
+    vout.TexC0 = texC0;
+    vout.TexC1 = texC1;
     
     float4 posW = mul(float4(posL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
