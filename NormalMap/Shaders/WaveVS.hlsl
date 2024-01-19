@@ -11,8 +11,8 @@ VertexOut main( VertexIn vin )
     
     float4x4 moveTexTransform0 = gTexTransform;
     float4x4 moveTexTransform1 = gTexTransform;
-    moveTexTransform0._41 += gTotalTime * -0.04f;
-    moveTexTransform1._42 += gTotalTime * 0.02f;
+    moveTexTransform0._41 += gTotalTime * -0.03f;
+    moveTexTransform1._42 += gTotalTime * -0.02f;
     
     float2 texC0 = mul(mul(float4(vin.TexC, 0.0f, 1.0f), moveTexTransform0), matData.MatTransform).xy;
     float2 texC1 = mul(mul(float4(vin.TexC, 0.0f, 1.0f), moveTexTransform1), matData.MatTransform).xy;
