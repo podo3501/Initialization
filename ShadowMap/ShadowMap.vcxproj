@@ -128,10 +128,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="FrameResource.h" />
+    <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="ShadowMapApp.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FrameResource.cpp" />
+    <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="ShadowMapApp.cpp" />
   </ItemGroup>
   <ItemGroup>

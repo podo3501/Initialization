@@ -24,12 +24,18 @@
     <ClInclude Include="ShadowMapApp.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="ShadowMap.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FrameResource.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="ShadowMapApp.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="ShadowMap.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
