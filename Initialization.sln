@@ -58,6 +58,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DynamicCube", "DynamicCube\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NormalMap", "NormalMap\NormalMap.vcxproj", "{E23CCC6F-2054-4EAA-B3DF-49C0E0BE9CF4}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ShadowMap", "ShadowMap\ShadowMap.vcxproj", "{DCD75871-36AE-4A6C-B544-799B8A7913F3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -274,6 +276,14 @@ Global
 		{E23CCC6F-2054-4EAA-B3DF-49C0E0BE9CF4}.Release|x64.Build.0 = Release|x64
 		{E23CCC6F-2054-4EAA-B3DF-49C0E0BE9CF4}.Release|x86.ActiveCfg = Release|Win32
 		{E23CCC6F-2054-4EAA-B3DF-49C0E0BE9CF4}.Release|x86.Build.0 = Release|Win32
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Debug|x64.ActiveCfg = Debug|x64
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Debug|x64.Build.0 = Debug|x64
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Debug|x86.ActiveCfg = Debug|Win32
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Debug|x86.Build.0 = Debug|Win32
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Release|x64.ActiveCfg = Release|x64
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Release|x64.Build.0 = Release|x64
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Release|x86.ActiveCfg = Release|Win32
+		{DCD75871-36AE-4A6C-B544-799B8A7913F3}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
