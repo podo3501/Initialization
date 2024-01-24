@@ -4,6 +4,7 @@
 #include "../Common/UploadBuffer.h"
 #include "FrameResource.h"
 #include "../Common/GeometryGenerator.h"
+#include "ShadowMap.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -29,10 +30,9 @@ bool ShadowMapApp::Initialize()
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	mCamera.LookAt(
-		XMFLOAT3(5.0f, 4.0f, -15.0f),
-		XMFLOAT3(0.0f, 1.0f, 0.0f),
-		XMFLOAT3(0.0f, 1.0f, 0.0f));
+	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
+
+	mShadowMap = std::make_unique<ShadowMap>(md3dDevice.Get(), 2048, 2048);
 
 	LoadTextures();
 	BuildRootSignature();
@@ -54,13 +54,35 @@ bool ShadowMapApp::Initialize()
 	return true;
 }
 
+void ShadowMapApp::CreateRtvAndDsvDescriptorHeaps()
+{
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+	rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+		&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc{};
+	dsvHeapDesc.NumDescriptors = 2;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+		&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
+}
+
 void ShadowMapApp::LoadTextures()
 {
 	std::vector<std::wstring> filenames 
 	{ 
 		L"bricks2.dds",
+		L"bricks2_nmap.dds",
 		L"tile.dds",
+		L"tile_nmap.dds",
 		L"white1x1.dds",
+		L"default_nmap.dds",
 		L"grasscube1024.dds"
 	};
 	
@@ -75,15 +97,15 @@ void ShadowMapApp::LoadTextures()
 
 void ShadowMapApp::BuildRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE cubeTexTable{}, texTable{};
-	cubeTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE cubeAndShadowTexTable{}, texTable{};
+	cubeAndShadowTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
 
 	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &cubeTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &cubeAndShadowTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = d3dUtil::GetStaticSamplers();
@@ -104,24 +126,57 @@ void ShadowMapApp::BuildRootSignature()
 		IID_PPV_ARGS(&mRootSignature)));
 }
 
+void ShadowMapApp::BuildShadowMap(const D3D12_SHADER_RESOURCE_VIEW_DESC& srvDesc, UINT index)
+{
+	D3D12_SHADER_RESOURCE_VIEW_DESC shadowDesc{ srvDesc };
+	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
+
+	mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
+	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
+
+	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
+	auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
+	mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
+
+	md3dDevice->CreateShaderResourceView(nullptr, &shadowDesc, nullSrv);
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
+
+	shadowDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	shadowDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	shadowDesc.Texture2D.MostDetailedMip = 0;
+	shadowDesc.Texture2D.MipLevels = 1;
+	shadowDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	md3dDevice->CreateShaderResourceView(nullptr, &shadowDesc, nullSrv);
+
+	mShadowMap->BuildDescriptors(
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
+}
+
 void ShadowMapApp::BuildDescriptorHeaps()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.NodeMask = 0;
-	heapDesc.NumDescriptors = static_cast<UINT>(mTextures.size());
+	heapDesc.NumDescriptors = 14;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
-	for_each(mTextures.begin(), mTextures.end(), [&, index{ 0 }](auto& curTex) mutable {
-		auto& curTexResource = curTex->Resource;
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+	UINT index = 0;
+	for_each(mTextures.begin(), mTextures.end(), [&](auto& curTex) {
+		auto& curTexResource = curTex->Resource;	
 		srvDesc.Format = curTexResource->GetDesc().Format;
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.Texture2D.MipLevels = curTexResource->GetDesc().MipLevels;
-		srvDesc.Texture2D.MostDetailedMip = 0;
-		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 
 		if (curTex->Filename.find(L"cube") != std::wstring::npos)
 		{
@@ -137,12 +192,24 @@ void ShadowMapApp::BuildDescriptorHeaps()
 		hCpuDesc.Offset(index++, mCbvSrvUavDescriptorSize);
 		md3dDevice->CreateShaderResourceView(curTex->Resource.Get(), &srvDesc, hCpuDesc);
 		});
+
+	BuildShadowMap(srvDesc, index);
 }
 
 void ShadowMapApp::BuildShadersAndInputLayout()
 {
+	const D3D_SHADER_MACRO alphaTestDefines[] = { "ALPHA_TEST", "1", NULL, NULL };
+
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders/StandardVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders/OpaquePS.hlsl", nullptr, "main", "ps_5_1");
+
+	mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shaders/ShadowsVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shaders/ShadowsPS.hlsl", nullptr, "main", "ps_5_1");
+	mShaders["ShadowAlphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/ShadowsPS.hlsl", alphaTestDefines,
+		"main", "ps_5_1");
+
+	mShaders["debugVS"] = d3dUtil::CompileShader(L"Shaders/ShadowDebugVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["debugPS"] = d3dUtil::CompileShader(L"Shaders/ShadowDebugPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/SkyVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/SkyPS.hlsl", nullptr, "main", "ps_5_1");
@@ -152,6 +219,7 @@ void ShadowMapApp::BuildShadersAndInputLayout()
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+		{"TANGENT", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 }
 

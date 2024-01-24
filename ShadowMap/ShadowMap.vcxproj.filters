@@ -55,6 +55,12 @@
     <None Include="Shaders\VertexInout_Sky.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Shaders\VertexInout_Shadows.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\VertexInout_ShadowDebug.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\OpaquePS.hlsl">
@@ -67,6 +73,18 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Shaders\StandardVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ShadowsVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ShadowsPS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ShadowDebugVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\ShadowDebugPS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

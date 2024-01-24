@@ -9,7 +9,7 @@
 #include "../Common/Camera.h"
 #include <map>
 
-class Waves;
+class ShadowMap;
 struct FrameResource;
 
 struct RenderItem
@@ -68,6 +68,7 @@ public:
 	virtual bool Initialize() override;
 
 private:
+	virtual void CreateRtvAndDsvDescriptorHeaps() override;
 	virtual void OnResize() override;
 	virtual void Update(const GameTimer& gt) override;
 	virtual void Draw(const GameTimer& gt) override;
@@ -84,6 +85,7 @@ private:
 
 	void LoadTextures();
 	void BuildRootSignature();
+	void BuildShadowMap(const D3D12_SHADER_RESOURCE_VIEW_DESC& srvDesc, UINT index);
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
 	void BuildShapeGeometry();
@@ -100,6 +102,12 @@ private:
 		const std::vector<RenderItem*> ritems);
 
 private:
+	std::unique_ptr<ShadowMap> mShadowMap{ nullptr };
+	UINT mShadowMapHeapIndex{ 0 };
+	UINT mNullCubeSrvIndex{ 0 };
+	UINT mNullTexSrvIndex{ 0 };
+	CD3DX12_GPU_DESCRIPTOR_HANDLE mNullSrv{};
+
 	std::vector<std::unique_ptr<Texture>> mTextures;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
