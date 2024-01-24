@@ -15,6 +15,8 @@ const int gNumFrameResources = 3;
 ShadowMapApp::ShadowMapApp(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
+	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	mSceneBounds.Radius = sqrtf(10.0f * 10.0f + 15.0f * 15.0f);
 }
 
 ShadowMapApp::~ShadowMapApp()
@@ -95,6 +97,20 @@ void ShadowMapApp::LoadTextures()
 		});
 }
 
+D3D12_STATIC_SAMPLER_DESC ShadowSampler()
+{
+	return CD3DX12_STATIC_SAMPLER_DESC(
+		6, // shaderRegister
+		D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT, // filter
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressU
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressV
+		D3D12_TEXTURE_ADDRESS_MODE_BORDER,  // addressW
+		0.0f,                               // mipLODBias
+		16,                                 // maxAnisotropy
+		D3D12_COMPARISON_FUNC_LESS_EQUAL,
+		D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK);
+}
+
 void ShadowMapApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE cubeAndShadowTexTable{}, texTable{};
@@ -109,6 +125,8 @@ void ShadowMapApp::BuildRootSignature()
 	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = d3dUtil::GetStaticSamplers();
+	staticSamplers.emplace_back(ShadowSampler());
+
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc{
 		_countof(slotRootParameter), slotRootParameter,
 		static_cast<UINT>(staticSamplers.size()), staticSamplers.data(),
@@ -230,6 +248,7 @@ void ShadowMapApp::BuildShapeGeometry()
 	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
+	GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
 
 	//
 	// We are concatenating all the geometry into one big vertex/index buffer.  So
@@ -241,12 +260,14 @@ void ShadowMapApp::BuildShapeGeometry()
 	UINT gridVertexOffset = (UINT)box.Vertices.size();
 	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
 	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
+	UINT quadVertexOffset = cylinderVertexOffset + (UINT)cylinder.Vertices.size();
 
 	// Cache the starting index for each object in the concatenated index buffer.
 	UINT boxIndexOffset = 0;
 	UINT gridIndexOffset = (UINT)box.Indices32.size();
 	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
 	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
+	UINT quadIndexOffset = cylinderIndexOffset + (UINT)cylinder.Indices32.size();
 
 	SubmeshGeometry boxSubmesh;
 	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
@@ -268,6 +289,11 @@ void ShadowMapApp::BuildShapeGeometry()
 	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
 	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
 
+	SubmeshGeometry quadSubmesh;
+	quadSubmesh.IndexCount = (UINT)quad.Indices32.size();
+	quadSubmesh.StartIndexLocation = quadIndexOffset;
+	quadSubmesh.BaseVertexLocation = quadVertexOffset;
+
 	//
 	// Extract the vertex elements we are interested in and pack the
 	// vertices of all the meshes into one vertex buffer.
@@ -277,7 +303,8 @@ void ShadowMapApp::BuildShapeGeometry()
 		box.Vertices.size() +
 		grid.Vertices.size() +
 		sphere.Vertices.size() +
-		cylinder.Vertices.size();
+		cylinder.Vertices.size() +
+		quad.Vertices.size();
 
 	std::vector<Vertex> vertices(totalVertexCount);
 
@@ -287,6 +314,7 @@ void ShadowMapApp::BuildShapeGeometry()
 		vertices[k].Pos = box.Vertices[i].Position;
 		vertices[k].Normal = box.Vertices[i].Normal;
 		vertices[k].TexC = box.Vertices[i].TexC;
+		vertices[k].TangentU = box.Vertices[i].TangentU;
 	}
 
 	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
@@ -294,6 +322,7 @@ void ShadowMapApp::BuildShapeGeometry()
 		vertices[k].Pos = grid.Vertices[i].Position;
 		vertices[k].Normal = grid.Vertices[i].Normal;
 		vertices[k].TexC = grid.Vertices[i].TexC;
+		vertices[k].TangentU = grid.Vertices[i].TangentU;
 	}
 
 	for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
@@ -301,6 +330,7 @@ void ShadowMapApp::BuildShapeGeometry()
 		vertices[k].Pos = sphere.Vertices[i].Position;
 		vertices[k].Normal = sphere.Vertices[i].Normal;
 		vertices[k].TexC = sphere.Vertices[i].TexC;
+		vertices[k].TangentU = sphere.Vertices[i].TangentU;
 	}
 
 	for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
@@ -308,6 +338,15 @@ void ShadowMapApp::BuildShapeGeometry()
 		vertices[k].Pos = cylinder.Vertices[i].Position;
 		vertices[k].Normal = cylinder.Vertices[i].Normal;
 		vertices[k].TexC = cylinder.Vertices[i].TexC;
+		vertices[k].TangentU = cylinder.Vertices[i].TangentU;
+	}
+
+	for (int i = 0; i < quad.Vertices.size(); ++i, ++k)
+	{
+		vertices[k].Pos = quad.Vertices[i].Position;
+		vertices[k].Normal = quad.Vertices[i].Normal;
+		vertices[k].TexC = quad.Vertices[i].TexC;
+		vertices[k].TangentU = quad.Vertices[i].TangentU;
 	}
 
 	std::vector<std::uint16_t> indices;
@@ -315,6 +354,7 @@ void ShadowMapApp::BuildShapeGeometry()
 	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
 	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
 	indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
+	indices.insert(indices.end(), std::begin(quad.GetIndices16()), std::end(quad.GetIndices16()));
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
@@ -343,6 +383,7 @@ void ShadowMapApp::BuildShapeGeometry()
 	geo->DrawArgs["grid"] = gridSubmesh;
 	geo->DrawArgs["sphere"] = sphereSubmesh;
 	geo->DrawArgs["cylinder"] = cylinderSubmesh;
+	geo->DrawArgs["quad"] = quadSubmesh;
 
 	mGeometries[geo->Name] = std::move(geo);
 }
@@ -380,6 +421,25 @@ void ShadowMapApp::BuildSkullGeometry()
 		vertices[i].TexC = { 0.0f, 0.0f };
 
 		XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
+
+		XMVECTOR N = XMLoadFloat3(&vertices[i].Normal);
+
+		// Generate a tangent vector so normal mapping works.  We aren't applying
+		// a texture map to the skull, so we just need any tangent vector so that
+		// the math works out to give us the original interpolated vertex normal.
+		XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+		if (fabsf(XMVectorGetX(XMVector3Dot(N, up))) < 1.0f - 0.001f)
+		{
+			XMVECTOR T = XMVector3Normalize(XMVector3Cross(up, N));
+			XMStoreFloat3(&vertices[i].TangentU, T);
+		}
+		else
+		{
+			up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+			XMVECTOR T = XMVector3Normalize(XMVector3Cross(N, up));
+			XMStoreFloat3(&vertices[i].TangentU, T);
+		}
+
 
 		vMin = XMVectorMin(vMin, P);
 		vMax = XMVectorMax(vMax, P);
@@ -442,23 +502,24 @@ void ShadowMapApp::BuildSkullGeometry()
 
 void ShadowMapApp::BuildMaterials()
 {
-	auto MakeMaterial = [&](std::string&& name, int matCBIdx, int diffuseSrvHeapIdx,
+	auto MakeMaterial = [&](std::string&& name, int matCBIdx, int diffuseSrvHeapIdx, int normalSrvHeapIdx,
 		XMFLOAT4 diffuseAlbedo, XMFLOAT3 fresnelR0, float rough) {
 			auto curMat = std::make_unique<Material>();
 			curMat->Name = name;
 			curMat->MatCBIndex = matCBIdx;
 			curMat->DiffuseSrvHeapIndex = diffuseSrvHeapIdx;
+			curMat->NormalSrvHeapIndex = normalSrvHeapIdx;
 			curMat->DiffuseAlbedo = diffuseAlbedo;
 			curMat->FresnelR0 = fresnelR0;
 			curMat->Roughness = rough;
 			mMaterials[name] = std::move(curMat);
 		};
 
-	MakeMaterial("bricks0", 0, 0, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
-	MakeMaterial("tile0", 1, 1, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
-	MakeMaterial("mirror0", 2, 2, { 0.0f, 0.0f, 0.1f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("skullMat", 3, 2, { 0.8f, 0.8f, 0.8f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.2f);
-	MakeMaterial("sky", 4, 3, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
+	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
+	MakeMaterial("tile0", 1, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
+	MakeMaterial("mirror0", 2, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
+	MakeMaterial("skullMat", 3, 4, 5, { 0.3f, 0.3f, 0.3f, 1.0f }, { 0.6f, 0.6f, 0.6f }, 0.2f);
+	MakeMaterial("sky", 4, 6, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
 }
 
 void ShadowMapApp::BuildRenderItems()
@@ -482,8 +543,9 @@ void ShadowMapApp::BuildRenderItems()
 	};
 
 	MakeRenderItem("shapeGeo", "sphere", "sky", XMMatrixScaling(5000.0f, 5000.0f, 5000.0f), XMMatrixIdentity(), RenderLayer::Sky);
+	MakeRenderItem("shapeGeo", "quad", "bricks0", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Debug);
 	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
-		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
+		XMMatrixScaling(1.0f, 0.5f, 1.0f), RenderLayer::Opaque);
 	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f),
 		XMMatrixIdentity(), RenderLayer::Opaque);
 	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
@@ -509,7 +571,7 @@ void ShadowMapApp::BuildFrameResources()
 {
 	for (auto i : Range(0, gNumFrameResources))
 	{
-		auto frameRes = std::make_unique<FrameResource>(md3dDevice.Get(), 1,
+		auto frameRes = std::make_unique<FrameResource>(md3dDevice.Get(), 2,
 			static_cast<UINT>(mAllRitems.size()), static_cast<UINT>(mMaterials.size()));
 		mFrameResources.emplace_back(std::move(frameRes));
 	}
@@ -540,6 +602,25 @@ void ShadowMapApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 	inoutDesc->SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 }
 
+void ShadowMapApp::MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	inoutDesc->RasterizerState.DepthBias = 100000;
+	inoutDesc->RasterizerState.DepthBiasClamp = 0.0f;
+	inoutDesc->RasterizerState.SlopeScaledDepthBias = 1.0f;
+	inoutDesc->pRootSignature = mRootSignature.Get();
+	inoutDesc->VS = GetShaderBytecode(mShaders, "shadowVS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "shadowOpaquePS");
+	inoutDesc->RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
+	inoutDesc->NumRenderTargets = 0;
+}
+
+void ShadowMapApp::MakeDebugDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	inoutDesc->pRootSignature = mRootSignature.Get();
+	inoutDesc->VS = GetShaderBytecode(mShaders, "debugVS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "debugPS");
+}
+
 void ShadowMapApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
 	inoutDesc->RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -556,8 +637,10 @@ void ShadowMapApp::MakePSOPipelineState(GraphicsPSO psoType)
 
 	switch (psoType)
 	{
-	case GraphicsPSO::Opaque:		break;
-	case GraphicsPSO::Sky:	MakeSkyDesc(&psoDesc);		break;
+	case GraphicsPSO::Opaque:					break;
+	case GraphicsPSO::ShadowOpaque:		MakeShadowOpaqueDesc(&psoDesc);	break;
+	case GraphicsPSO::Debug:		MakeDebugDesc(&psoDesc);		break;
+	case GraphicsPSO::Sky:			MakeSkyDesc(&psoDesc);				break;
 	default: assert(!"wrong type");
 	}
 
@@ -648,12 +731,49 @@ void ShadowMapApp::UpdateMaterialBuffer(const GameTimer& gt)
 		matData.FresnelR0 = mat->FresnelR0;
 		matData.Roughness = mat->Roughness;
 		matData.DiffuseMapIndex = mat->DiffuseSrvHeapIndex;
+		matData.NormalMapIndex = mat->NormalSrvHeapIndex;
 		StoreMatrix4x4(matData.MatTransform, mat->MatTransform);
 
 		currMaterialBuffer->CopyData(mat->MatCBIndex, matData);
 
 		mat->NumFramesDirty--;
 	}
+}
+
+void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
+{
+	XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);
+	XMVECTOR lightPos = -2.0f * mSceneBounds.Radius * lightDir;
+	XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);
+	XMVECTOR lightUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp);
+
+	XMStoreFloat3(&mLightPosW, lightPos);
+
+	XMFLOAT3 sphereCenterLS;
+	XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));
+
+	float l = sphereCenterLS.x - mSceneBounds.Radius;
+	float b = sphereCenterLS.y - mSceneBounds.Radius;
+	float n = sphereCenterLS.z - mSceneBounds.Radius;
+	float r = sphereCenterLS.x + mSceneBounds.Radius;
+	float t = sphereCenterLS.y + mSceneBounds.Radius;
+	float f = sphereCenterLS.z + mSceneBounds.Radius;
+
+	mLightNearZ = n;
+	mLightFarZ = f;
+	XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
+
+	XMMATRIX T(
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f);
+
+	XMMATRIX S = lightView * lightProj * T;
+	XMStoreFloat4x4(&mLightView, lightView);
+	XMStoreFloat4x4(&mLightProj, lightProj);
+	XMStoreFloat4x4(&mShadowTransform, S);
 }
 
 void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
@@ -672,6 +792,7 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	StoreMatrix4x4(pc.InvProj, Inverse(proj));
 	StoreMatrix4x4(pc.ViewProj, viewProj);
 	StoreMatrix4x4(pc.InvViewProj, Inverse(viewProj));
+	StoreMatrix4x4(pc.ShadowTransform, Inverse(mShadowTransform));
 	pc.EyePosW = mCamera.GetPosition3f();
 	pc.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
 	pc.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
@@ -680,14 +801,41 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	pc.TotalTime = gt.TotalTime();
 	pc.DeltaTime = gt.DeltaTime();
 	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	pc.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	pc.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
-	pc.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	pc.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
-	pc.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	pc.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+	pc.Lights[0].Direction = mRotatedLightDirections[0];
+	pc.Lights[0].Strength = { 0.9f, 0.8f, 0.7f };
+	pc.Lights[1].Direction = mRotatedLightDirections[1];
+	pc.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
+	pc.Lights[2].Direction = mRotatedLightDirections[2];
+	pc.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
 
 	passCB->CopyData(0, pc);
+}
+
+void ShadowMapApp::UpdateShadowPassCB(const GameTimer& gt)
+{
+	auto& passCB = mCurFrameRes->PassCB;
+
+	UINT w = mShadowMap->Width();
+	UINT h = mShadowMap->Height();
+
+	XMMATRIX view = XMLoadFloat4x4(&mLightView);
+	XMMATRIX proj = XMLoadFloat4x4(&mLightProj);
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+
+	PassConstants shadowPC;
+	StoreMatrix4x4(shadowPC.View, view);
+	StoreMatrix4x4(shadowPC.InvView, Inverse(view));
+	StoreMatrix4x4(shadowPC.Proj, proj);
+	StoreMatrix4x4(shadowPC.InvProj, Inverse(proj));
+	StoreMatrix4x4(shadowPC.ViewProj, viewProj);
+	StoreMatrix4x4(shadowPC.InvViewProj, Inverse(viewProj));
+	shadowPC.EyePosW = mLightPosW;
+	shadowPC.RenderTargetSize = XMFLOAT2((float)w, (float)h);
+	shadowPC.InvRenderTargetSize = XMFLOAT2(1.0f / w, 1.0f / h);
+	shadowPC.NearZ = mLightNearZ;
+	shadowPC.FarZ = mLightFarZ;
+
+	passCB->CopyData(1, shadowPC);
 }
 
 void ShadowMapApp::Update(const GameTimer& gt)
@@ -703,11 +851,22 @@ void ShadowMapApp::Update(const GameTimer& gt)
 		WaitForSingleObject(hEvent, INFINITE);
 		CloseHandle(hEvent);
 	}
+
+	mLightRotationAngle += 0.1f * gt.DeltaTime();
+	XMMATRIX R = XMMatrixRotationY(mLightRotationAngle);
+	for (auto i : Range(0, 3))
+	{
+		XMVECTOR lightDir = XMLoadFloat3(&mBaseLightDirections[i]);
+		lightDir = XMVector3TransformNormal(lightDir, R);
+		XMStoreFloat3(&mRotatedLightDirections[i], lightDir);
+	}
 	
 	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialBuffer(gt);
+	UpdateShadowTransform(gt);
 	UpdateMainPassCB(gt);
+	UpdateShadowPassCB(gt);
 }
 
 void ShadowMapApp::DrawRenderItems(

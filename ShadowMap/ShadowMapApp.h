@@ -40,6 +40,7 @@ struct RenderItem
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	Debug,
 	Sky,
 	Count
 };
@@ -47,13 +48,17 @@ enum class RenderLayer : int
 enum class GraphicsPSO : int
 {
 	Opaque = 0,
+	ShadowOpaque,
+	Debug,
 	Sky,
 	Count
 };
 
 constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> GraphicsPSO_ALL
 {
-	GraphicsPSO::Opaque, 
+	GraphicsPSO::Opaque,
+	GraphicsPSO::ShadowOpaque,
+	GraphicsPSO::Debug,
 	GraphicsPSO::Sky,
 };
 
@@ -81,7 +86,9 @@ private:
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
+	void UpdateShadowTransform(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
+	void UpdateShadowPassCB(const GameTimer& gt);
 
 	void LoadTextures();
 	void BuildRootSignature();
@@ -93,6 +100,8 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeDebugDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();
@@ -102,6 +111,8 @@ private:
 		const std::vector<RenderItem*> ritems);
 
 private:
+	DirectX::BoundingSphere mSceneBounds{};
+
 	std::unique_ptr<ShadowMap> mShadowMap{ nullptr };
 	UINT mShadowMapHeapIndex{ 0 };
 	UINT mNullCubeSrvIndex{ 0 };
@@ -126,13 +137,20 @@ private:
 	UINT mSkyTexHeapIndex = 0;
 	UINT mFrameResIdx = 0;
 
-	float mTheta = 1.5f * DirectX::XM_PI;
-	float mPhi = DirectX::XM_PIDIV2 - 0.1f;
-	float mRadius = 50.0f;
+	float mLightNearZ = 0.0f;
+	float mLightFarZ = 0.0f;
+	DirectX::XMFLOAT3 mLightPosW;
+	DirectX::XMFLOAT4X4 mLightView = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 mLightProj = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 mShadowTransform = MathHelper::Identity4x4();
 
-	float mSunTheta = 1.25f * DirectX::XM_PI;
-	float mSunPhi = DirectX::XM_PIDIV4;
-
+	float mLightRotationAngle = 0.0f;
+	DirectX::XMFLOAT3 mBaseLightDirections[3] = {
+		DirectX::XMFLOAT3(0.57735f, -0.57735f, 0.57735f),
+		DirectX::XMFLOAT3(-0.57735f, -0.57735f, 0.57735f),
+		DirectX::XMFLOAT3(0.0f, -0.707f, -0.707f)
+	};
+	DirectX::XMFLOAT3 mRotatedLightDirections[3]{};
 	POINT mLastMousePos;
 
 	Camera mCamera;
