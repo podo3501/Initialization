@@ -792,7 +792,7 @@ void ShadowMapApp::UpdateMainPassCB(const GameTimer& gt)
 	StoreMatrix4x4(pc.InvProj, Inverse(proj));
 	StoreMatrix4x4(pc.ViewProj, viewProj);
 	StoreMatrix4x4(pc.InvViewProj, Inverse(viewProj));
-	StoreMatrix4x4(pc.ShadowTransform, Inverse(mShadowTransform));
+	StoreMatrix4x4(pc.ShadowTransform, mShadowTransform);
 	pc.EyePosW = mCamera.GetPosition3f();
 	pc.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
 	pc.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
@@ -888,12 +888,52 @@ void ShadowMapApp::DrawRenderItems(
 	}
 }
 
+void ShadowMapApp::DrawSceneToShadowMap()
+{
+	mCommandList->RSSetViewports(1, &RvToLv(mShadowMap->Viewport()));
+	mCommandList->RSSetScissorRects(1, &RvToLv(mShadowMap->ScissorRect()));
+
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE)));
+
+	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
+
+	mCommandList->ClearDepthStencilView(mShadowMap->Dsv(),
+		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	mCommandList->OMSetRenderTargets(0, nullptr, false, &RvToLv(mShadowMap->Dsv()));
+
+	auto passCB = mCurFrameRes->PassCB->Resource();
+	D3D12_GPU_VIRTUAL_ADDRESS passCBAddress = passCB->GetGPUVirtualAddress() + 1 * passCBByteSize;
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCBAddress);
+
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::ShadowOpaque].Get());
+	
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
+
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(mShadowMap->Resource(),
+		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ)));
+}
+
 void ShadowMapApp::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurFrameRes->CmdListAlloc;
 	ThrowIfFailed(cmdListAlloc->Reset());
 
 	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs[GraphicsPSO::Opaque].Get()));
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
+
+	mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);
+	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+
+	DrawSceneToShadowMap();
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -906,24 +946,18 @@ void ShadowMapApp::Draw(const GameTimer& gt)
 
 	mCommandList->OMSetRenderTargets(1, &RvToLv(CurrentBackBufferView()), true, &RvToLv(DepthStencilView()));
 
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
-
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
-
 	auto passCB = mCurFrameRes->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
-
-	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
-	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
 	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
 
-	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Opaque].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
+
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Debug].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Debug]);
 
 	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Sky].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Sky]);

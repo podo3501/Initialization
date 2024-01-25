@@ -109,6 +109,7 @@ private:
 	void DrawRenderItems(
 		ID3D12GraphicsCommandList* cmdList,
 		const std::vector<RenderItem*> ritems);
+	void DrawSceneToShadowMap();
 
 private:
 	DirectX::BoundingSphere mSceneBounds{};
