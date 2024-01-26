@@ -113,16 +113,18 @@ D3D12_STATIC_SAMPLER_DESC ShadowSampler()
 
 void ShadowMapApp::BuildRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE cubeAndShadowTexTable{}, texTable{};
-	cubeAndShadowTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 0, 0);
+	CD3DX12_DESCRIPTOR_RANGE cubeTexTable{}, shadowTexTable{}, texTable{};
+	cubeTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
+	shadowTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0);
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
 
-	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &cubeAndShadowTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &cubeTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[4].InitAsDescriptorTable(1, &shadowTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[5].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = d3dUtil::GetStaticSamplers();
 	staticSamplers.emplace_back(ShadowSampler());
@@ -930,8 +932,8 @@ void ShadowMapApp::Draw(const GameTimer& gt)
 	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
-	mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);
-	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	mCommandList->SetGraphicsRootDescriptorTable(4, mNullSrv);
+	mCommandList->SetGraphicsRootDescriptorTable(5, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	DrawSceneToShadowMap();
 
@@ -952,6 +954,10 @@ void ShadowMapApp::Draw(const GameTimer& gt)
 	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+
+	CD3DX12_GPU_DESCRIPTOR_HANDLE shadowTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	shadowTexDescriptor.Offset(mShadowMapHeapIndex, mCbvSrvUavDescriptorSize);
+	mCommandList->SetGraphicsRootDescriptorTable(4, shadowTexDescriptor);
 
 	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Opaque].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
