@@ -12,9 +12,7 @@ struct MaterialData
     uint MatPad2;
 };
 
-TextureCube gCubeMap : register(t0);
-Texture2D gShadowMap : register(t1);
-Texture2D gTextureMaps[10] : register(t2);
+Texture2D gTextureMaps[5] : register(t0);
 
 StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);
 

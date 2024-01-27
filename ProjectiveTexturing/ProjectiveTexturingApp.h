@@ -47,18 +47,12 @@ enum class RenderLayer : int
 enum class GraphicsPSO : int
 {
 	Opaque = 0,
-	ShadowOpaque,
-	Debug,
-	Sky,
 	Count
 };
 
 constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> GraphicsPSO_ALL
 {
 	GraphicsPSO::Opaque,
-	GraphicsPSO::ShadowOpaque,
-	GraphicsPSO::Debug,
-	GraphicsPSO::Sky,
 };
 
 class ProjectiveTexturingApp : public D3DApp
@@ -85,22 +79,16 @@ private:
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
-	void UpdateShadowTransform(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
-	void UpdateShadowPassCB(const GameTimer& gt);
 
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
 	void BuildShapeGeometry();
-	void BuildSkullGeometry();
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
-	void MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
-	void MakeDebugDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
-	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();
 	void BuildRenderItems();

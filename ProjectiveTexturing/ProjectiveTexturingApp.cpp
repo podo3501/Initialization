@@ -36,7 +36,6 @@ bool ProjectiveTexturingApp::Initialize()
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildShapeGeometry();
-	BuildSkullGeometry();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -74,13 +73,7 @@ void ProjectiveTexturingApp::LoadTextures()
 {
 	std::vector<std::wstring> filenames 
 	{ 
-		L"bricks2.dds",
-		L"bricks2_nmap.dds",
-		L"tile.dds",
-		L"tile_nmap.dds",
-		L"white1x1.dds",
-		L"default_nmap.dds",
-		L"grasscube1024.dds"
+		L"bricks2.dds"
 	};
 	
 	for_each(filenames.begin(), filenames.end(), [&](auto& curFilename) {
@@ -94,18 +87,14 @@ void ProjectiveTexturingApp::LoadTextures()
 
 void ProjectiveTexturingApp::BuildRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE cubeTexTable{}, shadowTexTable{}, texTable{};
-	cubeTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
-	shadowTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0);
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 2, 0);
+	CD3DX12_DESCRIPTOR_RANGE texTable{};
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 0, 0);
 
-	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &cubeTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[4].InitAsDescriptorTable(1, &shadowTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[5].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = d3dUtil::GetStaticSamplers();
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc{
@@ -131,7 +120,7 @@ void ProjectiveTexturingApp::BuildDescriptorHeaps()
 	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	heapDesc.NodeMask = 0;
-	heapDesc.NumDescriptors = 14;
+	heapDesc.NumDescriptors = 5;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -164,145 +153,43 @@ void ProjectiveTexturingApp::BuildDescriptorHeaps()
 
 void ProjectiveTexturingApp::BuildShadersAndInputLayout()
 {
-	const D3D_SHADER_MACRO alphaTestDefines[] = { "ALPHA_TEST", "1", NULL, NULL };
-
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders/StandardVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders/OpaquePS.hlsl", nullptr, "main", "ps_5_1");
-
-	mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shaders/ShadowsVS.hlsl", nullptr, "main", "vs_5_1");
-	mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shaders/ShadowsPS.hlsl", nullptr, "main", "ps_5_1");
-	mShaders["ShadowAlphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/ShadowsPS.hlsl", alphaTestDefines,
-		"main", "ps_5_1");
-
-	mShaders["debugVS"] = d3dUtil::CompileShader(L"Shaders/ShadowDebugVS.hlsl", nullptr, "main", "vs_5_1");
-	mShaders["debugPS"] = d3dUtil::CompileShader(L"Shaders/ShadowDebugPS.hlsl", nullptr, "main", "ps_5_1");
-
-	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/SkyVS.hlsl", nullptr, "main", "vs_5_1");
-	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/SkyPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mInputLayout =
 	{
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"TANGENT", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 	};
 }
 
 void ProjectiveTexturingApp::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;
-	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 3);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
-	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
-	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
-	GeometryGenerator::MeshData quad = geoGen.CreateQuad(0.0f, 0.0f, 1.0f, 1.0f, 0.0f);
+	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(5.0f, 20, 20);
 
-	//
-	// We are concatenating all the geometry into one big vertex/index buffer.  So
-	// define the regions in the buffer each submesh covers.
-	//
-
-	// Cache the vertex offsets to each object in the concatenated vertex buffer.
-	UINT boxVertexOffset = 0;
-	UINT gridVertexOffset = (UINT)box.Vertices.size();
-	UINT sphereVertexOffset = gridVertexOffset + (UINT)grid.Vertices.size();
-	UINT cylinderVertexOffset = sphereVertexOffset + (UINT)sphere.Vertices.size();
-	UINT quadVertexOffset = cylinderVertexOffset + (UINT)cylinder.Vertices.size();
-
-	// Cache the starting index for each object in the concatenated index buffer.
-	UINT boxIndexOffset = 0;
-	UINT gridIndexOffset = (UINT)box.Indices32.size();
-	UINT sphereIndexOffset = gridIndexOffset + (UINT)grid.Indices32.size();
-	UINT cylinderIndexOffset = sphereIndexOffset + (UINT)sphere.Indices32.size();
-	UINT quadIndexOffset = cylinderIndexOffset + (UINT)cylinder.Indices32.size();
-
-	SubmeshGeometry boxSubmesh;
-	boxSubmesh.IndexCount = (UINT)box.Indices32.size();
-	boxSubmesh.StartIndexLocation = boxIndexOffset;
-	boxSubmesh.BaseVertexLocation = boxVertexOffset;
-
-	SubmeshGeometry gridSubmesh;
-	gridSubmesh.IndexCount = (UINT)grid.Indices32.size();
-	gridSubmesh.StartIndexLocation = gridIndexOffset;
-	gridSubmesh.BaseVertexLocation = gridVertexOffset;
+	UINT sphereVertexOffset = 0;
+	UINT sphereIndexOffset = 0;
 
 	SubmeshGeometry sphereSubmesh;
 	sphereSubmesh.IndexCount = (UINT)sphere.Indices32.size();
 	sphereSubmesh.StartIndexLocation = sphereIndexOffset;
 	sphereSubmesh.BaseVertexLocation = sphereVertexOffset;
 
-	SubmeshGeometry cylinderSubmesh;
-	cylinderSubmesh.IndexCount = (UINT)cylinder.Indices32.size();
-	cylinderSubmesh.StartIndexLocation = cylinderIndexOffset;
-	cylinderSubmesh.BaseVertexLocation = cylinderVertexOffset;
-
-	SubmeshGeometry quadSubmesh;
-	quadSubmesh.IndexCount = (UINT)quad.Indices32.size();
-	quadSubmesh.StartIndexLocation = quadIndexOffset;
-	quadSubmesh.BaseVertexLocation = quadVertexOffset;
-
-	//
-	// Extract the vertex elements we are interested in and pack the
-	// vertices of all the meshes into one vertex buffer.
-	//
-
-	auto totalVertexCount =
-		box.Vertices.size() +
-		grid.Vertices.size() +
-		sphere.Vertices.size() +
-		cylinder.Vertices.size() +
-		quad.Vertices.size();
-
+	auto totalVertexCount = sphere.Vertices.size();
 	std::vector<Vertex> vertices(totalVertexCount);
 
 	UINT k = 0;
-	for (size_t i = 0; i < box.Vertices.size(); ++i, ++k)
-	{
-		vertices[k].Pos = box.Vertices[i].Position;
-		vertices[k].Normal = box.Vertices[i].Normal;
-		vertices[k].TexC = box.Vertices[i].TexC;
-		vertices[k].TangentU = box.Vertices[i].TangentU;
-	}
-
-	for (size_t i = 0; i < grid.Vertices.size(); ++i, ++k)
-	{
-		vertices[k].Pos = grid.Vertices[i].Position;
-		vertices[k].Normal = grid.Vertices[i].Normal;
-		vertices[k].TexC = grid.Vertices[i].TexC;
-		vertices[k].TangentU = grid.Vertices[i].TangentU;
-	}
-
 	for (size_t i = 0; i < sphere.Vertices.size(); ++i, ++k)
 	{
 		vertices[k].Pos = sphere.Vertices[i].Position;
 		vertices[k].Normal = sphere.Vertices[i].Normal;
 		vertices[k].TexC = sphere.Vertices[i].TexC;
-		vertices[k].TangentU = sphere.Vertices[i].TangentU;
-	}
-
-	for (size_t i = 0; i < cylinder.Vertices.size(); ++i, ++k)
-	{
-		vertices[k].Pos = cylinder.Vertices[i].Position;
-		vertices[k].Normal = cylinder.Vertices[i].Normal;
-		vertices[k].TexC = cylinder.Vertices[i].TexC;
-		vertices[k].TangentU = cylinder.Vertices[i].TangentU;
-	}
-
-	for (int i = 0; i < quad.Vertices.size(); ++i, ++k)
-	{
-		vertices[k].Pos = quad.Vertices[i].Position;
-		vertices[k].Normal = quad.Vertices[i].Normal;
-		vertices[k].TexC = quad.Vertices[i].TexC;
-		vertices[k].TangentU = quad.Vertices[i].TangentU;
 	}
 
 	std::vector<std::uint16_t> indices;
-	indices.insert(indices.end(), std::begin(box.GetIndices16()), std::end(box.GetIndices16()));
-	indices.insert(indices.end(), std::begin(grid.GetIndices16()), std::end(grid.GetIndices16()));
 	indices.insert(indices.end(), std::begin(sphere.GetIndices16()), std::end(sphere.GetIndices16()));
-	indices.insert(indices.end(), std::begin(cylinder.GetIndices16()), std::end(cylinder.GetIndices16()));
-	indices.insert(indices.end(), std::begin(quad.GetIndices16()), std::end(quad.GetIndices16()));
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
@@ -327,123 +214,7 @@ void ProjectiveTexturingApp::BuildShapeGeometry()
 	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
-	geo->DrawArgs["box"] = boxSubmesh;
-	geo->DrawArgs["grid"] = gridSubmesh;
 	geo->DrawArgs["sphere"] = sphereSubmesh;
-	geo->DrawArgs["cylinder"] = cylinderSubmesh;
-	geo->DrawArgs["quad"] = quadSubmesh;
-
-	mGeometries[geo->Name] = std::move(geo);
-}
-
-void ProjectiveTexturingApp::BuildSkullGeometry()
-{
-	std::ifstream fin("Models/skull.txt");
-
-	if (!fin)
-	{
-		MessageBox(0, L"Models/skull.txt not found.", 0, 0);
-		return;
-	}
-
-	UINT vcount = 0;
-	UINT tcount = 0;
-	std::string ignore;
-
-	fin >> ignore >> vcount;
-	fin >> ignore >> tcount;
-	fin >> ignore >> ignore >> ignore >> ignore;
-
-	XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
-	XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
-
-	XMVECTOR vMin = XMLoadFloat3(&vMinf3);
-	XMVECTOR vMax = XMLoadFloat3(&vMaxf3);
-
-	std::vector<Vertex> vertices(vcount);
-	for (UINT i = 0; i < vcount; ++i)
-	{
-		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
-		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
-
-		vertices[i].TexC = { 0.0f, 0.0f };
-
-		XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
-
-		XMVECTOR N = XMLoadFloat3(&vertices[i].Normal);
-
-		// Generate a tangent vector so normal mapping works.  We aren't applying
-		// a texture map to the skull, so we just need any tangent vector so that
-		// the math works out to give us the original interpolated vertex normal.
-		XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-		if (fabsf(XMVectorGetX(XMVector3Dot(N, up))) < 1.0f - 0.001f)
-		{
-			XMVECTOR T = XMVector3Normalize(XMVector3Cross(up, N));
-			XMStoreFloat3(&vertices[i].TangentU, T);
-		}
-		else
-		{
-			up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-			XMVECTOR T = XMVector3Normalize(XMVector3Cross(N, up));
-			XMStoreFloat3(&vertices[i].TangentU, T);
-		}
-
-
-		vMin = XMVectorMin(vMin, P);
-		vMax = XMVectorMax(vMax, P);
-	}
-
-	BoundingBox bounds;
-	XMStoreFloat3(&bounds.Center, 0.5f * (vMin + vMax));
-	XMStoreFloat3(&bounds.Extents, 0.5f * (vMax - vMin));
-
-	fin >> ignore;
-	fin >> ignore;
-	fin >> ignore;
-
-	std::vector<std::int32_t> indices(3 * tcount);
-	for (UINT i = 0; i < tcount; ++i)
-	{
-		fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
-	}
-
-	fin.close();
-
-	//
-	// Pack the indices of all the meshes into one index buffer.
-	//
-
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
-
-	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "skullGeo";
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	SubmeshGeometry submesh;
-	submesh.IndexCount = (UINT)indices.size();
-	submesh.StartIndexLocation = 0;
-	submesh.BaseVertexLocation = 0;
-	submesh.BBounds = bounds;
-
-	geo->DrawArgs["skull"] = submesh;
 
 	mGeometries[geo->Name] = std::move(geo);
 }
@@ -464,10 +235,6 @@ void ProjectiveTexturingApp::BuildMaterials()
 		};
 
 	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
-	MakeMaterial("tile0", 1, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
-	MakeMaterial("mirror0", 2, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("skullMat", 3, 4, 5, { 0.3f, 0.3f, 0.3f, 1.0f }, { 0.6f, 0.6f, 0.6f }, 0.2f);
-	MakeMaterial("sky", 4, 6, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
 }
 
 void ProjectiveTexturingApp::BuildRenderItems()
@@ -490,36 +257,14 @@ void ProjectiveTexturingApp::BuildRenderItems()
 		mAllRitems.emplace_back(std::move(renderItem));
 	};
 
-	MakeRenderItem("shapeGeo", "sphere", "sky", XMMatrixScaling(5000.0f, 5000.0f, 5000.0f), XMMatrixIdentity(), RenderLayer::Sky);
-	MakeRenderItem("shapeGeo", "quad", "bricks0", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Debug);
-	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
-		XMMatrixScaling(1.0f, 0.5f, 1.0f), RenderLayer::Opaque);
-	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f),
-		XMMatrixIdentity(), RenderLayer::Opaque);
-	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
-
-	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
-	for (auto i : Range(0, 5))
-	{
-		XMMATRIX leftCylWorld = XMMatrixTranslation(-5.0f, 1.5f, -10.0f + i * 5.0f);
-		XMMATRIX rightCylWorld = XMMatrixTranslation(+5.0f, 1.5f, -10.0f + i * 5.0f);
-
-		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i * 5.0f);
-		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
-
-		MakeRenderItem("shapeGeo", "cylinder", "bricks0", leftCylWorld, brickTexTransform, RenderLayer::Opaque);
-		MakeRenderItem("shapeGeo", "cylinder", "bricks0", rightCylWorld, brickTexTransform, RenderLayer::Opaque);
-
-		MakeRenderItem("shapeGeo", "sphere", "mirror0", leftSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
-		MakeRenderItem("shapeGeo", "sphere", "mirror0", rightSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
-	}
+	MakeRenderItem("shapeGeo", "sphere", "bricks0", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Opaque);
 }
 
 void ProjectiveTexturingApp::BuildFrameResources()
 {
 	for (auto i : Range(0, gNumFrameResources))
 	{
-		auto frameRes = std::make_unique<FrameResource>(md3dDevice.Get(), 2,
+		auto frameRes = std::make_unique<FrameResource>(md3dDevice.Get(), 1,
 			static_cast<UINT>(mAllRitems.size()), static_cast<UINT>(mMaterials.size()));
 		mFrameResources.emplace_back(std::move(frameRes));
 	}
@@ -550,34 +295,6 @@ void ProjectiveTexturingApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* 
 	inoutDesc->SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 }
 
-void ProjectiveTexturingApp::MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
-{
-	inoutDesc->RasterizerState.DepthBias = 100000;
-	inoutDesc->RasterizerState.DepthBiasClamp = 0.0f;
-	inoutDesc->RasterizerState.SlopeScaledDepthBias = 1.0f;
-	inoutDesc->pRootSignature = mRootSignature.Get();
-	inoutDesc->VS = GetShaderBytecode(mShaders, "shadowVS");
-	inoutDesc->PS = GetShaderBytecode(mShaders, "shadowOpaquePS");
-	inoutDesc->RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
-	inoutDesc->NumRenderTargets = 0;
-}
-
-void ProjectiveTexturingApp::MakeDebugDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
-{
-	inoutDesc->pRootSignature = mRootSignature.Get();
-	inoutDesc->VS = GetShaderBytecode(mShaders, "debugVS");
-	inoutDesc->PS = GetShaderBytecode(mShaders, "debugPS");
-}
-
-void ProjectiveTexturingApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
-{
-	inoutDesc->RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	inoutDesc->DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	inoutDesc->pRootSignature = mRootSignature.Get();
-	inoutDesc->VS = GetShaderBytecode(mShaders, "skyVS");
-	inoutDesc->PS = GetShaderBytecode(mShaders, "skyPS");
-}
-
 void ProjectiveTexturingApp::MakePSOPipelineState(GraphicsPSO psoType)
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
@@ -586,9 +303,6 @@ void ProjectiveTexturingApp::MakePSOPipelineState(GraphicsPSO psoType)
 	switch (psoType)
 	{
 	case GraphicsPSO::Opaque:					break;
-	case GraphicsPSO::ShadowOpaque:		MakeShadowOpaqueDesc(&psoDesc);	break;
-	case GraphicsPSO::Debug:		MakeDebugDesc(&psoDesc);		break;
-	case GraphicsPSO::Sky:			MakeSkyDesc(&psoDesc);				break;
 	default: assert(!"wrong type");
 	}
 
@@ -797,18 +511,10 @@ void ProjectiveTexturingApp::Draw(const GameTimer& gt)
 	auto passCB = mCurFrameRes->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
 
-	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Opaque].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
-
-	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Debug].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Debug]);
-
-	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Sky].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Sky]);
 
 	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT)));

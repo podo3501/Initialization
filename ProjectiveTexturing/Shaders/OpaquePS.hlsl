@@ -29,33 +29,6 @@ float3 NormalSampleToWorldSpace(float3 normalMapSample, float3 unitNormalW, floa
     return bumpedNormalW;
 }
 
-float CalcShadowFactor(float4 shadowPosH)
-{
-    shadowPosH.xyz /= shadowPosH.w;
-    float depth = shadowPosH.z;
-    
-    uint width, height, numMips;
-    gShadowMap.GetDimensions(0, width, height, numMips);
-    
-    float dx = 1.0f / (float) width;
-    
-    float percentLit = 0.0f;
-    const float2 offsets[9] =
-    {
-        float2(-dx, -dx), float2(0.0f, -dx), float2(dx, -dx),
-        float2(-dx, 0.0f), float2(0.0f, 0.0f), float2(dx, 0.0f),
-        float2(-dx, +dx), float2(0.0f, +dx), float2(dx, +dx)
-    };
-
-    [unroll]
-    for (int i = 0; i < 9; ++i)
-    {
-        percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow, shadowPosH.xy + offsets[i], depth).r;
-    }
-
-    return percentLit / 9.0f;
-}
-
 float4 main(VertexOut pin) : SV_Target
 {
     MaterialData matData = gMaterialData[gMaterialIndex];
@@ -74,15 +47,15 @@ float4 main(VertexOut pin) : SV_Target
     pin.NormalW = normalize(pin.NormalW);
     
     float4 normalMapSample = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
-    float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.TangentW);
+    //float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.TangentW);
     
-    //bumpedNormalW = pin.NormalW;
+    float3 bumpedNormalW = pin.NormalW;
     
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     
     float4 ambient = gAmbientLight * diffuseAlbedo;
     float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
-    shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
+    //shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
     
     const float shininess = (1.0f - roughness) * normalMapSample.a;
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
@@ -90,10 +63,10 @@ float4 main(VertexOut pin) : SV_Target
     
     float4 litColor = ambient + directLight;
     
-    float3 r = reflect(-toEyeW, bumpedNormalW);
-    float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
-    float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
-    litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
+    //float3 r = reflect(-toEyeW, bumpedNormalW);
+    //float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
+    //float3 fresnelFactor = SchlickFresnel(fresnelR0, bumpedNormalW, r);
+    //litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
     
 #ifdef FOG
     float fogAmount = saturate((distToEye - gFogStart) / gFogRange);
