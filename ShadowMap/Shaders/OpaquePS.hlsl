@@ -48,12 +48,12 @@ float CalcShadowFactor(float4 shadowPosH)
     };
 
     [unroll]
-    for (int i = 0; i < 9; ++i)
+    for (int i = 4; i < 5; ++i)
     {
         percentLit += gShadowMap.SampleCmpLevelZero(gsamShadow, shadowPosH.xy + offsets[i], depth).r;
     }
 
-    return percentLit / 9.0f;
+    return percentLit;// / 9.0f;
 }
 
 float4 main(VertexOut pin) : SV_Target

@@ -606,7 +606,7 @@ void ShadowMapApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 
 void ShadowMapApp::MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
-	inoutDesc->RasterizerState.DepthBias = 100000;
+	inoutDesc->RasterizerState.DepthBias = 1000000;
 	inoutDesc->RasterizerState.DepthBiasClamp = 0.0f;
 	inoutDesc->RasterizerState.SlopeScaledDepthBias = 1.0f;
 	inoutDesc->pRootSignature = mRootSignature.Get();
@@ -765,6 +765,7 @@ void ShadowMapApp::UpdateShadowTransform(const GameTimer& gt)
 	mLightNearZ = n;
 	mLightFarZ = f;
 	XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
+	//XMMATRIX lightProj = XMMatrixPerspectiveOffCenterLH(l, r, b, t, n, f);
 
 	XMMATRIX T(
 		0.5f, 0.0f, 0.0f, 0.0f,
