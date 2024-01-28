@@ -14,6 +14,8 @@ const int gNumFrameResources = 3;
 ProjectiveTexturingApp::ProjectiveTexturingApp(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
+	mSceneBounds.Center = XMFLOAT3(0.0f, 0.0f, 0.0f);
+	mSceneBounds.Radius = sqrtf(10.0f * 10.0f + 15.0f * 15.0f);
 }
 
 ProjectiveTexturingApp::~ProjectiveTexturingApp()
@@ -73,6 +75,7 @@ void ProjectiveTexturingApp::LoadTextures()
 {
 	std::vector<std::wstring> filenames 
 	{ 
+		L"white1x1.dds",
 		L"bricks2.dds"
 	};
 	
@@ -133,18 +136,7 @@ void ProjectiveTexturingApp::BuildDescriptorHeaps()
 	for_each(mTextures.begin(), mTextures.end(), [&](auto& curTex) {
 		auto& curTexResource = curTex->Resource;	
 		srvDesc.Format = curTexResource->GetDesc().Format;
-		srvDesc.Texture2D.MipLevels = curTexResource->GetDesc().MipLevels;
-
-		if (curTex->Filename.find(L"cube") != std::wstring::npos)
-		{
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-			srvDesc.TextureCube.MostDetailedMip = 0;
-			srvDesc.TextureCube.MipLevels = curTexResource->GetDesc().MipLevels;
-			srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-			srvDesc.Format = curTexResource->GetDesc().Format;
-			mSkyTexHeapIndex = index;
-		}
-		
+		srvDesc.Texture2D.MipLevels = curTexResource->GetDesc().MipLevels;	
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc{ mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart() };
 		hCpuDesc.Offset(index++, mCbvSrvUavDescriptorSize);
 		md3dDevice->CreateShaderResourceView(curTex->Resource.Get(), &srvDesc, hCpuDesc);
@@ -168,6 +160,7 @@ void ProjectiveTexturingApp::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(5.0f, 20, 20);
+	//GeometryGenerator::MeshData sphere = geoGen.CreateBox(2.0f, 2.0f, 2.0f, 3);
 
 	UINT sphereVertexOffset = 0;
 	UINT sphereIndexOffset = 0;
@@ -234,7 +227,8 @@ void ProjectiveTexturingApp::BuildMaterials()
 			mMaterials[name] = std::move(curMat);
 		};
 
-	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
+	MakeMaterial("white", 0, 1, 0, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.1f);
+	MakeMaterial("bricks0", 1, 1, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
 }
 
 void ProjectiveTexturingApp::BuildRenderItems()
@@ -257,7 +251,7 @@ void ProjectiveTexturingApp::BuildRenderItems()
 		mAllRitems.emplace_back(std::move(renderItem));
 	};
 
-	MakeRenderItem("shapeGeo", "sphere", "bricks0", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Opaque);
+	MakeRenderItem("shapeGeo", "sphere", "white", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Opaque);
 }
 
 void ProjectiveTexturingApp::BuildFrameResources()
@@ -402,6 +396,38 @@ void ProjectiveTexturingApp::UpdateMaterialBuffer(const GameTimer& gt)
 	}
 }
 
+void ProjectiveTexturingApp::UpdateProjectiveTransform(const GameTimer& gt)
+{
+	XMVECTOR lightDir = XMLoadFloat3(&mRotatedLightDirections[0]);
+	XMVECTOR lightPos = -4.0f * mSceneBounds.Radius * lightDir;
+	XMVECTOR targetPos = XMLoadFloat3(&mSceneBounds.Center);
+	XMVECTOR lightUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMMATRIX lightView = XMMatrixLookAtLH(lightPos, targetPos, lightUp);
+
+	XMFLOAT3 sphereCenterLS;
+	XMStoreFloat3(&sphereCenterLS, XMVector3TransformCoord(targetPos, lightView));
+
+	float l = sphereCenterLS.x - mSceneBounds.Radius;
+	float b = sphereCenterLS.y - mSceneBounds.Radius;
+	float n = sphereCenterLS.z - mSceneBounds.Radius;
+	float r = sphereCenterLS.x + mSceneBounds.Radius;
+	float t = sphereCenterLS.y + mSceneBounds.Radius;
+	float f = sphereCenterLS.z + mSceneBounds.Radius;
+
+	//XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(l, r, b, t, n, f);
+	XMMATRIX lightProj = XMMatrixPerspectiveOffCenterLH(l, r, b, t, n, f);
+
+	XMMATRIX T(
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f);
+
+	XMMATRIX S = lightView * lightProj * T;
+	XMStoreFloat4x4(&mProjectiveTransform, S);
+}
+
+
 void ProjectiveTexturingApp::UpdateMainPassCB(const GameTimer& gt)
 {
 	auto& passCB = mCurFrameRes->PassCB;
@@ -418,7 +444,7 @@ void ProjectiveTexturingApp::UpdateMainPassCB(const GameTimer& gt)
 	StoreMatrix4x4(pc.InvProj, Inverse(proj));
 	StoreMatrix4x4(pc.ViewProj, viewProj);
 	StoreMatrix4x4(pc.InvViewProj, Inverse(viewProj));
-	StoreMatrix4x4(pc.ShadowTransform, mShadowTransform);
+	StoreMatrix4x4(pc.ProjectiveProj, mProjectiveTransform);
 	pc.EyePosW = mCamera.GetPosition3f();
 	pc.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
 	pc.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
@@ -461,6 +487,7 @@ void ProjectiveTexturingApp::Update(const GameTimer& gt)
 	}
 	
 	AnimateMaterials(gt);
+	UpdateProjectiveTransform(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialBuffer(gt);
 	UpdateMainPassCB(gt);
@@ -510,6 +537,9 @@ void ProjectiveTexturingApp::Draw(const GameTimer& gt)
 
 	auto passCB = mCurFrameRes->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+
+	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
 	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 

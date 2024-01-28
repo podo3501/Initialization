@@ -38,7 +38,9 @@ float4 main(VertexOut pin) : SV_Target
     uint diffuseMapIndex = matData.DiffuseMapIndex;
     uint normalMapIndex = matData.NormalMapIndex;
     
-    diffuseAlbedo *= gTextureMaps[diffuseMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+    pin.ProjTex.xyz /= pin.ProjTex.w;
+    
+    diffuseAlbedo *= gTextureMaps[diffuseMapIndex].Sample(gsamAnisotropicClamp, pin.ProjTex.xy);
     
 #ifdef ALPHA_TEST
     clip(diffuseAlbedo.a - 0.1f);
@@ -46,7 +48,7 @@ float4 main(VertexOut pin) : SV_Target
     
     pin.NormalW = normalize(pin.NormalW);
     
-    float4 normalMapSample = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
+    //float4 normalMapSample = gTextureMaps[normalMapIndex].Sample(gsamAnisotropicWrap, pin.TexC);
     //float3 bumpedNormalW = NormalSampleToWorldSpace(normalMapSample.rgb, pin.NormalW, pin.TangentW);
     
     float3 bumpedNormalW = pin.NormalW;
@@ -54,10 +56,10 @@ float4 main(VertexOut pin) : SV_Target
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     
     float4 ambient = gAmbientLight * diffuseAlbedo;
-    float3 shadowFactor = float3(1.0f, 1.0f, 1.0f);
+    float3 shadowFactor = 1.0f;
     //shadowFactor[0] = CalcShadowFactor(pin.ShadowPosH);
     
-    const float shininess = (1.0f - roughness) * normalMapSample.a;
+    const float shininess = (1.0f - roughness);// * normalMapSample.a;
     Material mat = { diffuseAlbedo, fresnelR0, shininess };
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW, bumpedNormalW, toEyeW, shadowFactor);
     

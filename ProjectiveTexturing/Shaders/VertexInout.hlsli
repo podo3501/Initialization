@@ -10,5 +10,6 @@ struct VertexOut
     float4 PosH : SV_POSITION;
     float3 PosW : POSITION;
     float3 NormalW : NORMAL;
-    float2 TexC : TEXCOORD;
+    float2 TexC : TEXCOORD0;
+    float4 ProjTex : TEXCOORD1;
 };

@@ -79,6 +79,7 @@ private:
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
+	void UpdateProjectiveTransform(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
 	void LoadTextures();
@@ -97,6 +98,8 @@ private:
 		const std::vector<RenderItem*> ritems);
 
 private:
+	DirectX::BoundingSphere mSceneBounds{};
+
 	std::vector<std::unique_ptr<Texture>> mTextures;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
@@ -109,18 +112,11 @@ private:
 	std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 	std::unordered_map<GraphicsPSO, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
 	std::unordered_map<RenderLayer, std::vector<RenderItem*>> mRitemLayer;
-	RenderItem* mPickedRitem = nullptr;
 	FrameResource* mCurFrameRes = nullptr;
 
-	UINT mSkyTexHeapIndex = 0;
-	UINT mFrameResIdx = 0;
+	DirectX::XMFLOAT4X4 mProjectiveTransform = MathHelper::Identity4x4();
 
-	float mLightNearZ = 0.0f;
-	float mLightFarZ = 0.0f;
-	DirectX::XMFLOAT3 mLightPosW;
-	DirectX::XMFLOAT4X4 mLightView = MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 mLightProj = MathHelper::Identity4x4();
-	DirectX::XMFLOAT4X4 mShadowTransform = MathHelper::Identity4x4();
+	UINT mFrameResIdx = 0;
 
 	float mLightRotationAngle = 0.0f;
 	DirectX::XMFLOAT3 mBaseLightDirections[3] = {

@@ -15,6 +15,8 @@ VertexOut main( VertexIn vin )
     
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
     vout.TexC = mul(texC, matData.MatTransform).xy;
+    
+    vout.ProjTex = mul(float4(vin.PosL, 1.0f), gProjectiveProj);
 	
     return vout;
 }
