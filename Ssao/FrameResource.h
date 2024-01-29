@@ -37,6 +37,23 @@ struct PassConstants
     Light Lights[MaxLights]{};
 };
 
+struct SsaoConstants
+{
+    DirectX::XMFLOAT4X4 Proj{};
+    DirectX::XMFLOAT4X4 InvProj{};
+    DirectX::XMFLOAT4X4 ProjTex{};
+    DirectX::XMFLOAT4 OffsetVectors[14]{};
+
+    DirectX::XMFLOAT4 BlurWeights[3]{};
+
+    DirectX::XMFLOAT2 InvRenderTargetSize = { 0.0f, 0.0f };
+
+    float OcclusionRadius = 0.5f;
+    float OcclusionFadeStart = 0.2f;
+    float OcclusionFadeEnd = 2.0f;
+    float SurfaceEpsilon = 0.05f;
+};
+
 struct MaterialData
 {
     DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -78,6 +95,8 @@ public:
     // that reference it.  So each frame needs their own cbuffers.
     std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
     std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+    std::unique_ptr<UploadBuffer<SsaoConstants>> SsaoCB = nullptr;
+
     std::unique_ptr<UploadBuffer<MaterialData>> MaterialBuffer = nullptr;
 
     // Fence value to mark commands up to this fence point.  This lets us

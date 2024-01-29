@@ -145,3 +145,73 @@ void Ssao::SetPSOs(ID3D12PipelineState* ssaoPso, ID3D12PipelineState* ssaoBlurPs
 	mSsaoPso = ssaoPso;
 	mBlurPso = ssaoBlurPso;
 }
+
+void Ssao::OnResize(UINT newWidth, UINT newHeight)
+{
+	if (mRenderTargetWidth != newWidth || mRenderTargetHeight != newHeight)
+	{
+		mRenderTargetWidth = newWidth;
+		mRenderTargetHeight = newHeight;
+
+		mViewport.TopLeftX = 0.0f;
+		mViewport.TopLeftY = 0.0f;
+		mViewport.Width = mRenderTargetWidth / 2.0f;
+		mViewport.Height = mRenderTargetHeight / 2.0f;
+		mViewport.MinDepth = 0.0f;
+		mViewport.MaxDepth = 1.0f;
+
+		mScissorRect = { 0, 0, (int)mRenderTargetWidth / 2, (int)mRenderTargetHeight / 2 };
+
+		BuildResources();
+	}
+}
+
+void Ssao::ComputeSsao(
+	ID3D12GraphicsCommandList* cmdList,
+	FrameResource* currFrame,
+	int blurCount)
+{
+	cmdList->RSSetViewports(1, &mViewport);
+	cmdList->RSSetScissorRects(1, &mScissorRect);
+
+	cmdList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET)));
+
+	float clearValue[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	cmdList->ClearRenderTargetView(mhAmbientMap0CpuRtv, clearValue, 0, nullptr);
+
+	cmdList->OMSetRenderTargets(1, &mhAmbientMap0CpuRtv, true, nullptr);
+
+	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
+	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);
+	cmdList->SetGraphicsRoot32BitConstant(1, 0, 0);
+
+	cmdList->SetGraphicsRootDescriptorTable(2, mhNormalMapGpuSrv);
+	cmdList->SetGraphicsRootDescriptorTable(3, mhRandomVectorMapGpuSrv);
+
+	cmdList->SetPipelineState(mSsaoPso);
+
+	cmdList->IASetVertexBuffers(0, 0, nullptr);
+	cmdList->IASetIndexBuffer(nullptr);
+	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmdList->DrawInstanced(6, 1, 0, 0);
+
+	cmdList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(mAmbientMap0.Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ)));
+
+	BlurAmbientMap(cmdList, currFrame, blurCount);
+}
+
+void Ssao::BlurAmbientMap(ID3D12GraphicsCommandList* cmdList, FrameResource* currFrame, int blurCount)
+{
+	cmdList->SetPipelineState(mBlurPso);
+
+	auto ssaoCBAddress = currFrame->SsaoCB->Resource()->GetGPUVirtualAddress();
+	cmdList->SetGraphicsRootConstantBufferView(0, ssaoCBAddress);
+
+	for (auto i : Range(0, blurCount))
+	{
+		BlurAmbientMap(cmdList, true);
+		BlurAmbientMap(cmdList, false);
+	}
+}
