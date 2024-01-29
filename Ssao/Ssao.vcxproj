@@ -172,11 +172,13 @@
   <ItemGroup>
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
+    <ClCompile Include="Ssao.cpp" />
     <ClCompile Include="SsaoApp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="ShadowMap.h" />
+    <ClInclude Include="Ssao.h" />
     <ClInclude Include="SsaoApp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
