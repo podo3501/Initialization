@@ -10,6 +10,7 @@
 #include <map>
 
 class ShadowMap;
+class Ssao;
 struct FrameResource;
 
 struct RenderItem
@@ -49,6 +50,8 @@ enum class GraphicsPSO : int
 {
 	Opaque = 0,
 	ShadowOpaque,
+	Ssao,
+	SsaoBlur,
 	Debug,
 	Sky,
 	Count
@@ -58,6 +61,8 @@ constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> Graph
 {
 	GraphicsPSO::Opaque,
 	GraphicsPSO::ShadowOpaque,
+	GraphicsPSO::Ssao,
+	GraphicsPSO::SsaoBlur,
 	GraphicsPSO::Debug,
 	GraphicsPSO::Sky,
 };
@@ -92,6 +97,7 @@ private:
 
 	void LoadTextures();
 	void BuildRootSignature();
+	void BuildSsaoRootSignature();
 	void BuildShadowMap(const D3D12_SHADER_RESOURCE_VIEW_DESC& srvDesc, UINT index);
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
@@ -114,6 +120,8 @@ private:
 private:
 	DirectX::BoundingSphere mSceneBounds{};
 
+	std::unique_ptr<Ssao> mSsao{ nullptr };
+
 	std::unique_ptr<ShadowMap> mShadowMap{ nullptr };
 	UINT mShadowMapHeapIndex{ 0 };
 	UINT mNullCubeSrvIndex{ 0 };
@@ -122,7 +130,9 @@ private:
 
 	std::vector<std::unique_ptr<Texture>> mTextures;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> mSsaoRootSignature = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
+
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;

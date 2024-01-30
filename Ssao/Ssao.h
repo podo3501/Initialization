@@ -9,7 +9,7 @@ public:
 	Ssao(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, UINT width, UINT height);
 	Ssao(const Ssao& rhs) = delete;
 	Ssao& operator=(const Ssao& rhs) = delete;
-	~Ssao() = delete;
+	~Ssao() = default;
 
 	static const DXGI_FORMAT AmbientMapFormat = DXGI_FORMAT_R16_UNORM;
 	static const DXGI_FORMAT NormalMapFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
