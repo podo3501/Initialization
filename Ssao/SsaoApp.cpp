@@ -230,45 +230,42 @@ void SsaoApp::BuildSsaoRootSignature()
 		IID_PPV_ARGS(mSsaoRootSignature.GetAddressOf())));
 }
 
-void SsaoApp::BuildShadowMap(const D3D12_SHADER_RESOURCE_VIEW_DESC& srvDesc, UINT index)
+CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetCpuSrv(int index) const
 {
-	D3D12_SHADER_RESOURCE_VIEW_DESC shadowDesc{ srvDesc };
-	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
+	auto srv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	srv.Offset(index, mCbvSrvUavDescriptorSize);
+	return srv;
+}
 
-	mNullCubeSrvIndex = mShadowMapHeapIndex + 1;
-	mNullTexSrvIndex = mNullCubeSrvIndex + 1;
+CD3DX12_GPU_DESCRIPTOR_HANDLE SsaoApp::GetGpuSrv(int index) const
+{
+	auto srv = CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	srv.Offset(index, mCbvSrvUavDescriptorSize);
+	return srv;
+}
 
-	auto srvCpuStart = mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	auto srvGpuStart = mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart();
-	auto dsvCpuStart = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetDsv(int index) const
+{
+	auto dsv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mDsvHeap->GetCPUDescriptorHandleForHeapStart());
+	dsv.Offset(index, mDsvDescriptorSize);
+	return dsv;
+}
 
-	auto nullSrv = CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
-	mNullSrv = CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mNullCubeSrvIndex, mCbvSrvUavDescriptorSize);
-
-	md3dDevice->CreateShaderResourceView(nullptr, &shadowDesc, nullSrv);
-	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
-
-	shadowDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	shadowDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	shadowDesc.Texture2D.MostDetailedMip = 0;
-	shadowDesc.Texture2D.MipLevels = 1;
-	shadowDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-	md3dDevice->CreateShaderResourceView(nullptr, &shadowDesc, nullSrv);
-
-	mShadowMap->BuildDescriptors(
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(srvCpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_GPU_DESCRIPTOR_HANDLE(srvGpuStart, mShadowMapHeapIndex, mCbvSrvUavDescriptorSize),
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvCpuStart, 1, mDsvDescriptorSize));
+CD3DX12_CPU_DESCRIPTOR_HANDLE SsaoApp::GetRtv(int index) const
+{
+	auto rtv = CD3DX12_CPU_DESCRIPTOR_HANDLE(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+	rtv.Offset(index, mRtvDescriptorSize);
+	return rtv;
 }
 
 void SsaoApp::BuildDescriptorHeaps()
 {
-	D3D12_DESCRIPTOR_HEAP_DESC heapDesc{};
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	heapDesc.NodeMask = 0;
-	heapDesc.NumDescriptors = 14;
-	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
+	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc{};
+	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	srvHeapDesc.NodeMask = 0;
+	srvHeapDesc.NumDescriptors = 18;
+	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -297,7 +294,46 @@ void SsaoApp::BuildDescriptorHeaps()
 		md3dDevice->CreateShaderResourceView(curTex->Resource.Get(), &srvDesc, hCpuDesc);
 		});
 
-	BuildShadowMap(srvDesc, index);
+	UINT mSsaoHeapIndexStart{ 0 };
+	UINT mSsaoAmbientMapIndex{ 0 };
+	UINT mNullTexSrvIndex1{ 0 };
+	UINT mNullTexSrvIndex2{ 0 };
+
+	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
+	mSsaoHeapIndexStart = mShadowMapHeapIndex + 1;
+	mSsaoAmbientMapIndex = mSsaoHeapIndexStart + 3;
+	mNullCubeSrvIndex = mSsaoHeapIndexStart + 5;
+	mNullTexSrvIndex1 = mNullCubeSrvIndex + 1;
+	mNullTexSrvIndex2 = mNullTexSrvIndex1 + 1;
+
+	auto nullSrv = GetCpuSrv(mNullCubeSrvIndex);
+	mNullSrv = GetGpuSrv(mNullCubeSrvIndex);
+
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
+
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+
+	nullSrv.Offset(1, mCbvSrvUavDescriptorSize);
+	md3dDevice->CreateShaderResourceView(nullptr, &srvDesc, nullSrv);
+
+	mShadowMap->BuildDescriptors(
+		GetCpuSrv(mShadowMapHeapIndex),
+		GetGpuSrv(mShadowMapHeapIndex),
+		GetDsv(1));
+
+	mSsao->BuildDescriptors(
+		mDepthStencilBuffer.Get(),
+		GetCpuSrv(mSsaoHeapIndexStart),
+		GetGpuSrv(mSsaoHeapIndexStart),
+		GetRtv(SwapChainBufferCount),
+		mCbvSrvUavDescriptorSize,
+		mRtvDescriptorSize);
 }
 
 void SsaoApp::BuildShadersAndInputLayout()
@@ -314,6 +350,15 @@ void SsaoApp::BuildShadersAndInputLayout()
 
 	mShaders["debugVS"] = d3dUtil::CompileShader(L"Shaders/ShadowDebugVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["debugPS"] = d3dUtil::CompileShader(L"Shaders/ShadowDebugPS.hlsl", nullptr, "main", "ps_5_1");
+
+	mShaders["drawNormalsVS"] = d3dUtil::CompileShader(L"Shaders/DrawNormalsVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["drawNormalsPS"] = d3dUtil::CompileShader(L"Shaders/DrawNormalsPS.hlsl", nullptr, "main", "ps_5_1");
+
+	mShaders["ssaoVS"] = d3dUtil::CompileShader(L"Shaders/SsaoVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["ssaoPS"] = d3dUtil::CompileShader(L"Shaders/SsaoPS.hlsl", nullptr, "main", "ps_5_1");
+
+	mShaders["ssaoBlurVS"] = d3dUtil::CompileShader(L"Shaders/SsaoBlurVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["ssaoBlurPS"] = d3dUtil::CompileShader(L"Shaders/SsaoBlurPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/SkyVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/SkyPS.hlsl", nullptr, "main", "ps_5_1");

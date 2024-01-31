@@ -98,7 +98,6 @@ private:
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildSsaoRootSignature();
-	void BuildShadowMap(const D3D12_SHADER_RESOURCE_VIEW_DESC& srvDesc, UINT index);
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
 	void BuildShapeGeometry();
@@ -116,6 +115,11 @@ private:
 		ID3D12GraphicsCommandList* cmdList,
 		const std::vector<RenderItem*> ritems);
 	void DrawSceneToShadowMap();
+
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetCpuSrv(int index) const;
+	CD3DX12_GPU_DESCRIPTOR_HANDLE GetGpuSrv(int index) const;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetDsv(int index) const;
+	CD3DX12_CPU_DESCRIPTOR_HANDLE GetRtv(int index) const;
 
 private:
 	DirectX::BoundingSphere mSceneBounds{};

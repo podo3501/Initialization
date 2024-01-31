@@ -39,6 +39,18 @@
     <None Include="Shaders\VertexInout_Sky.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Shaders\VertexInout_DrawNormals.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\SsaoHeader.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\VertexInout_Ssao.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\VertexInout_SsaoBlur.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\OpaquePS.hlsl">
@@ -63,6 +75,24 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Shaders\StandardVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\DrawNormalsVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\DrawNormalsPS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SsaoVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SsaoPS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SsaoBlurVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Shaders\SsaoBlurPS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>
