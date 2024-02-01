@@ -3,5 +3,5 @@
 
 float4 main(VertexOut pin) : SV_Target
 {
-    return float4(gSsaoMap.Sample(gsamLinearWrap, pin.TexC).rrr, 1.0f);
+    return float4(gShadowMap.Sample(gsamLinearWrap, pin.TexC).rrr, 1.0f);
 }

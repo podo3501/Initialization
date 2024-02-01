@@ -782,7 +782,6 @@ void SsaoApp::MakeSsao(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 
 void SsaoApp::MakeSsaoBlur(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
-	MakeSsao(inoutDesc);
 	inoutDesc->VS = GetShaderBytecode(mShaders, "ssaoBlurVS");
 	inoutDesc->PS = GetShaderBytecode(mShaders, "ssaoBlurPS");
 }
