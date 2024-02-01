@@ -7,6 +7,7 @@
 #include "../Common/d3dApp.h"
 #include "../Common/MathHelper.h"
 #include "../Common/Camera.h"
+#include "FrameResource.h"
 #include <map>
 
 class ShadowMap;
@@ -50,9 +51,10 @@ enum class GraphicsPSO : int
 {
 	Opaque = 0,
 	ShadowOpaque,
+	Debug,
+	DrawNormals,
 	Ssao,
 	SsaoBlur,
-	Debug,
 	Sky,
 	Count
 };
@@ -61,9 +63,10 @@ constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> Graph
 {
 	GraphicsPSO::Opaque,
 	GraphicsPSO::ShadowOpaque,
+	GraphicsPSO::Debug,
+	GraphicsPSO::DrawNormals,
 	GraphicsPSO::Ssao,
 	GraphicsPSO::SsaoBlur,
-	GraphicsPSO::Debug,
 	GraphicsPSO::Sky,
 };
 
@@ -94,6 +97,7 @@ private:
 	void UpdateShadowTransform(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 	void UpdateShadowPassCB(const GameTimer& gt);
+	void UpdateSsaoCB(const GameTimer& gt);
 
 	void LoadTextures();
 	void BuildRootSignature();
@@ -104,9 +108,13 @@ private:
 	void BuildSkullGeometry();
 	void BuildFrameResources();
 	void BuildMaterials();
+	void MakeBaseDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeDebugDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeDrawNormals(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeSsao(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeSsaoBlur(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();
@@ -115,6 +123,7 @@ private:
 		ID3D12GraphicsCommandList* cmdList,
 		const std::vector<RenderItem*> ritems);
 	void DrawSceneToShadowMap();
+	void DrawNormalsAndDepth();
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE GetCpuSrv(int index) const;
 	CD3DX12_GPU_DESCRIPTOR_HANDLE GetGpuSrv(int index) const;
@@ -148,6 +157,8 @@ private:
 	std::unordered_map<RenderLayer, std::vector<RenderItem*>> mRitemLayer;
 	RenderItem* mPickedRitem = nullptr;
 	FrameResource* mCurFrameRes = nullptr;
+
+	PassConstants mMainPassCB{};
 
 	UINT mSkyTexHeapIndex = 0;
 	UINT mFrameResIdx = 0;

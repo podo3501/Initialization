@@ -2,7 +2,6 @@
 #include "../Common/d3dUtil.h"
 #include "../Common/Util.h"
 #include "../Common/UploadBuffer.h"
-#include "FrameResource.h"
 #include "../Common/GeometryGenerator.h"
 #include "ShadowMap.h"
 #include "Ssao.h"
@@ -647,8 +646,8 @@ void SsaoApp::BuildMaterials()
 		};
 
 	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
-	MakeMaterial("tile0", 1, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
-	MakeMaterial("mirror0", 2, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
+	MakeMaterial("tile0", 2, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
+	MakeMaterial("mirror0", 3, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
 	MakeMaterial("skullMat", 3, 4, 5, { 0.3f, 0.3f, 0.3f, 1.0f }, { 0.6f, 0.6f, 0.6f }, 0.2f);
 	MakeMaterial("sky", 4, 6, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
 }
@@ -714,23 +713,28 @@ D3D12_SHADER_BYTECODE GetShaderBytecode(
 	return { shaders[name]->GetBufferPointer(), shaders[name]->GetBufferSize() };
 }
 
-void SsaoApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+void SsaoApp::MakeBaseDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
+	inoutDesc->InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
+	inoutDesc->pRootSignature = mRootSignature.Get();
 	inoutDesc->VS = GetShaderBytecode(mShaders, "standardVS");
 	inoutDesc->PS = GetShaderBytecode(mShaders, "opaquePS");
-	inoutDesc->NodeMask = 0;
-	inoutDesc->SampleMask = UINT_MAX;
-	inoutDesc->NumRenderTargets = 1;
-	inoutDesc->InputLayout = { mInputLayout.data(), static_cast<UINT>(mInputLayout.size()) };
-	inoutDesc->pRootSignature = mRootSignature.Get();
+	inoutDesc->RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	inoutDesc->BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	inoutDesc->DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-	inoutDesc->RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	inoutDesc->RTVFormats[0] = mBackBufferFormat;
-	inoutDesc->DSVFormat = mDepthStencilFormat;
+	inoutDesc->SampleMask = UINT_MAX;
 	inoutDesc->PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	inoutDesc->NumRenderTargets = 1;
+	inoutDesc->RTVFormats[0] = mBackBufferFormat;
 	inoutDesc->SampleDesc.Count = m4xMsaaState ? 4 : 1;
 	inoutDesc->SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	inoutDesc->DSVFormat = mDepthStencilFormat;
+}
+
+void SsaoApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	inoutDesc->DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_EQUAL;
+	inoutDesc->DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 }
 
 void SsaoApp::MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
@@ -752,6 +756,36 @@ void SsaoApp::MakeDebugDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 	inoutDesc->PS = GetShaderBytecode(mShaders, "debugPS");
 }
 
+void SsaoApp::MakeDrawNormals(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	inoutDesc->VS = GetShaderBytecode(mShaders, "drawNormalsVS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "drawNormalsPS");
+	inoutDesc->RTVFormats[0] = Ssao::NormalMapFormat;
+	inoutDesc->SampleDesc.Count = 1;
+	inoutDesc->SampleDesc.Quality = 0;
+	inoutDesc->DSVFormat = mDepthStencilFormat;
+}
+
+void SsaoApp::MakeSsao(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	inoutDesc->InputLayout = { nullptr, 0 };
+	inoutDesc->pRootSignature = mSsaoRootSignature.Get();
+	inoutDesc->VS = GetShaderBytecode(mShaders, "ssaoVS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "ssaoPS");
+	inoutDesc->DepthStencilState.DepthEnable = false;
+	inoutDesc->DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	inoutDesc->RTVFormats[0] = Ssao::AmbientMapFormat;
+	inoutDesc->SampleDesc.Count = 1;
+	inoutDesc->SampleDesc.Quality = 0;
+	inoutDesc->DSVFormat = DXGI_FORMAT_UNKNOWN;
+}
+
+void SsaoApp::MakeSsaoBlur(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
+{
+	inoutDesc->VS = GetShaderBytecode(mShaders, "ssaoBlurVS");
+	inoutDesc->PS = GetShaderBytecode(mShaders, "ssaoBlurPS");
+}
+
 void SsaoApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 {
 	inoutDesc->RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
@@ -764,14 +798,17 @@ void SsaoApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 void SsaoApp::MakePSOPipelineState(GraphicsPSO psoType)
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
-	MakeOpaqueDesc(&psoDesc);
+	MakeBaseDesc(&psoDesc);
 
 	switch (psoType)
 	{
-	case GraphicsPSO::Opaque:					break;
+	case GraphicsPSO::Opaque:					MakeOpaqueDesc(&psoDesc);					break;
 	case GraphicsPSO::ShadowOpaque:		MakeShadowOpaqueDesc(&psoDesc);	break;
-	case GraphicsPSO::Debug:		MakeDebugDesc(&psoDesc);		break;
-	case GraphicsPSO::Sky:			MakeSkyDesc(&psoDesc);				break;
+	case GraphicsPSO::Debug:						MakeDebugDesc(&psoDesc);					break;
+	case GraphicsPSO::DrawNormals:			MakeDrawNormals(&psoDesc);				break;
+	case GraphicsPSO::Ssao:						MakeSsao(&psoDesc);								break;
+	case GraphicsPSO::SsaoBlur:					MakeSsaoBlur(&psoDesc);						break;
+	case GraphicsPSO::Sky:							MakeSkyDesc(&psoDesc);							break;
 	default: assert(!"wrong type");
 	}
 
@@ -789,6 +826,12 @@ void SsaoApp::OnResize()
 	D3DApp::OnResize();
 
 	mCamera.SetLens(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.f);
+
+	if (mSsao != nullptr)
+	{
+		mSsao->OnResize(mClientWidth, mClientHeight);
+		mSsao->RebuildDescriptors(mDepthStencilBuffer.Get());
+	}
 }
 
 void SsaoApp::OnKeyboardInput(const GameTimer& gt)
@@ -914,33 +957,39 @@ void SsaoApp::UpdateMainPassCB(const GameTimer& gt)
 
 	XMMATRIX view = mCamera.GetView();
 	XMMATRIX proj = mCamera.GetProj();
-
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
-	PassConstants pc;
-	StoreMatrix4x4(pc.View, view);
-	StoreMatrix4x4(pc.InvView, Inverse(view));
-	StoreMatrix4x4(pc.Proj, proj);
-	StoreMatrix4x4(pc.InvProj, Inverse(proj));
-	StoreMatrix4x4(pc.ViewProj, viewProj);
-	StoreMatrix4x4(pc.InvViewProj, Inverse(viewProj));
-	StoreMatrix4x4(pc.ShadowTransform, mShadowTransform);
-	pc.EyePosW = mCamera.GetPosition3f();
-	pc.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
-	pc.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
-	pc.NearZ = 1.0f;
-	pc.FarZ = 1000.0f;
-	pc.TotalTime = gt.TotalTime();
-	pc.DeltaTime = gt.DeltaTime();
-	pc.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	pc.Lights[0].Direction = mRotatedLightDirections[0];
-	pc.Lights[0].Strength = { 0.9f, 0.8f, 0.7f };
-	pc.Lights[1].Direction = mRotatedLightDirections[1];
-	pc.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
-	pc.Lights[2].Direction = mRotatedLightDirections[2];
-	pc.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+	XMMATRIX T(
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f);
+	XMMATRIX viewProjTex = XMMatrixMultiply(viewProj, T);
 
-	passCB->CopyData(0, pc);
+	StoreMatrix4x4(mMainPassCB.View, view);
+	StoreMatrix4x4(mMainPassCB.InvView, Inverse(view));
+	StoreMatrix4x4(mMainPassCB.Proj, proj);
+	StoreMatrix4x4(mMainPassCB.InvProj, Inverse(proj));
+	StoreMatrix4x4(mMainPassCB.ViewProj, viewProj);
+	StoreMatrix4x4(mMainPassCB.InvViewProj, Inverse(viewProj));
+	StoreMatrix4x4(mMainPassCB.ViewProjTex, viewProjTex);
+	StoreMatrix4x4(mMainPassCB.ShadowTransform, mShadowTransform);
+	mMainPassCB.EyePosW = mCamera.GetPosition3f();
+	mMainPassCB.RenderTargetSize = { (float)mClientWidth, (float)mClientHeight };
+	mMainPassCB.InvRenderTargetSize = { 1.0f / (float)mClientWidth, 1.0f / (float)mClientHeight };
+	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.FarZ = 1000.0f;
+	mMainPassCB.TotalTime = gt.TotalTime();
+	mMainPassCB.DeltaTime = gt.DeltaTime();
+	mMainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	mMainPassCB.Lights[0].Direction = mRotatedLightDirections[0];
+	mMainPassCB.Lights[0].Strength = { 0.9f, 0.8f, 0.7f };
+	mMainPassCB.Lights[1].Direction = mRotatedLightDirections[1];
+	mMainPassCB.Lights[1].Strength = { 0.4f, 0.4f, 0.4f };
+	mMainPassCB.Lights[2].Direction = mRotatedLightDirections[2];
+	mMainPassCB.Lights[2].Strength = { 0.2f, 0.2f, 0.2f };
+
+	passCB->CopyData(0, mMainPassCB);
 }
 
 void SsaoApp::UpdateShadowPassCB(const GameTimer& gt)
@@ -968,6 +1017,40 @@ void SsaoApp::UpdateShadowPassCB(const GameTimer& gt)
 	shadowPC.FarZ = mLightFarZ;
 
 	passCB->CopyData(1, shadowPC);
+}
+
+void SsaoApp::UpdateSsaoCB(const GameTimer& gt)
+{
+	SsaoConstants ssaoCB{};
+
+	XMMATRIX P = mCamera.GetProj();
+
+	XMMATRIX T(
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, -0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.5f, 0.5f, 0.0f, 1.0f);
+
+	ssaoCB.Proj = mMainPassCB.Proj;
+	ssaoCB.InvProj = mMainPassCB.InvProj;
+	StoreMatrix4x4(ssaoCB.ProjTex, P * T);
+
+	mSsao->GetOffsetVectors(ssaoCB.OffsetVectors);
+
+	auto blurWeights = mSsao->CalcGaussWeights(2.5f);
+	ssaoCB.BlurWeights[0] = XMFLOAT4(&blurWeights[0]);
+	ssaoCB.BlurWeights[1] = XMFLOAT4(&blurWeights[4]);
+	ssaoCB.BlurWeights[2] = XMFLOAT4(&blurWeights[8]);
+
+	ssaoCB.InvRenderTargetSize = XMFLOAT2(1.0f / mSsao->SsaoMapWidth(), 1.0f / mSsao->SsaoMapHeight());
+
+	ssaoCB.OcclusionRadius = 0.5f;
+	ssaoCB.OcclusionFadeStart = 0.2f;
+	ssaoCB.OcclusionFadeEnd = 1.0f;
+	ssaoCB.SurfaceEpsilon = 0.05f;
+
+	auto currSsaoCB = mCurFrameRes->SsaoCB.get();
+	currSsaoCB->CopyData(0, ssaoCB);
 }
 
 void SsaoApp::Update(const GameTimer& gt)
@@ -999,6 +1082,7 @@ void SsaoApp::Update(const GameTimer& gt)
 	UpdateShadowTransform(gt);
 	UpdateMainPassCB(gt);
 	UpdateShadowPassCB(gt);
+	UpdateSsaoCB(gt);
 }
 
 void SsaoApp::DrawRenderItems(
@@ -1047,6 +1131,35 @@ void SsaoApp::DrawSceneToShadowMap()
 		D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ)));
 }
 
+void SsaoApp::DrawNormalsAndDepth()
+{
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	auto normalMap = mSsao->NormalMap();
+	auto normalMapRtv = mSsao->NormalMapRtv();
+
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(normalMap,
+		D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_RENDER_TARGET)));
+
+	float clearValue[] = { 0.0f, 0.0f, 1.0f, 0.0f };
+	mCommandList->ClearRenderTargetView(normalMapRtv, clearValue, 0, nullptr);
+	mCommandList->ClearDepthStencilView(DepthStencilView(), 
+		D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	mCommandList->OMSetRenderTargets(1, &normalMapRtv, true, &RvToLv(DepthStencilView()));
+
+	auto passCB = mCurFrameRes->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
+
+	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::DrawNormals].Get());
+
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
+
+	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(normalMap,
+		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_GENERIC_READ)));
+}
+
 void SsaoApp::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurFrameRes->CmdListAlloc;
@@ -1062,10 +1175,19 @@ void SsaoApp::Draw(const GameTimer& gt)
 	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
-	mCommandList->SetGraphicsRootDescriptorTable(4, mNullSrv);
-	mCommandList->SetGraphicsRootDescriptorTable(5, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	mCommandList->SetGraphicsRootDescriptorTable(3, mNullSrv);
+	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	DrawSceneToShadowMap();
+	DrawNormalsAndDepth();
+
+	mCommandList->SetGraphicsRootSignature(mSsaoRootSignature.Get());
+	mSsao->ComputeSsao(mCommandList.Get(), mCurFrameRes, 3);
+
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+	matBuffer = mCurFrameRes->MaterialBuffer->Resource();
+	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
 	mCommandList->RSSetScissorRects(1, &mScissorRect);
@@ -1074,9 +1196,10 @@ void SsaoApp::Draw(const GameTimer& gt)
 		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET)));
 
 	mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
-	mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	mCommandList->OMSetRenderTargets(1, &RvToLv(CurrentBackBufferView()), true, &RvToLv(DepthStencilView()));
+
+	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	auto passCB = mCurFrameRes->PassCB->Resource();
 	mCommandList->SetGraphicsRootConstantBufferView(1, passCB->GetGPUVirtualAddress());
@@ -1085,9 +1208,9 @@ void SsaoApp::Draw(const GameTimer& gt)
 	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
 	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
 
-	CD3DX12_GPU_DESCRIPTOR_HANDLE shadowTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	shadowTexDescriptor.Offset(mShadowMapHeapIndex, mCbvSrvUavDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(4, shadowTexDescriptor);
+	//CD3DX12_GPU_DESCRIPTOR_HANDLE shadowTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	//shadowTexDescriptor.Offset(mShadowMapHeapIndex, mCbvSrvUavDescriptorSize);
+	//mCommandList->SetGraphicsRootDescriptorTable(4, shadowTexDescriptor);
 
 	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Opaque].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
