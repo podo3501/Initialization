@@ -36,6 +36,8 @@ float4 main(VertexOut pin) : SV_Target
         float3 neighborNormal = gNormalMap.SampleLevel(gsamPointClamp, tex, 0.0f).xyz;
         float neighborDepth = NdcDepthToViewDepth(gDepthMap.SampleLevel(gsamDepthMap, tex, 0.0f).r);
         
+        //if (dot(neighborNormal, centerNormal) >= 0.8f &&
+           // abs(neighborDepth - centerDepth) <= 0.2f)
         if (dot(neighborNormal, centerNormal) >= 0.8f &&
             abs(neighborDepth - centerDepth) <= 0.2f)
         {
