@@ -11,9 +11,24 @@ using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
 
+void QuatDemoApp::DefineSkullAnimation()
+{
+	XMVECTOR q0 = XMQuaternionRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(30.0f));
+	XMVECTOR q1 = XMQuaternionRotationAxis(XMVectorSet(1.0f, 1.0f, 2.0f, 0.0f), XMConvertToRadians(45.0f));
+	XMVECTOR q2 = XMQuaternionRotationAxis(XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f), XMConvertToRadians(-30.0f));
+	XMVECTOR q3 = XMQuaternionRotationAxis(XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f), XMConvertToRadians(70.0f));
+
+	mSkullAnimation.SetKeyFrame(0.0f, { -7.0f, 0.0f, 0.0f }, { 0.25f, 0.25f, 0.25f }, q0);
+	mSkullAnimation.SetKeyFrame(2.0f, { 0.0f, 2.0f, 10.0f }, { 0.5f, 0.5f, 0.5f }, q1);
+	mSkullAnimation.SetKeyFrame(4.0f, { 7.0f, 0.0f, 0.0f }, { 0.25f, 0.25f, 0.25f }, q2);
+	mSkullAnimation.SetKeyFrame(6.0f, { 0.0f, 1.0f, -10.0f }, { 0.5f, 0.5f, 0.5f }, q3);
+	mSkullAnimation.SetKeyFrame(8.0f, { -7.0f, 0.0f, 0.0f }, { 0.25f, 0.25f, 0.25f }, q0);
+}
+
 QuatDemoApp::QuatDemoApp(HINSTANCE hInstance)
 	: D3DApp(hInstance)
 {
+	DefineSkullAnimation();
 }
 
 QuatDemoApp::~QuatDemoApp()
@@ -29,10 +44,7 @@ bool QuatDemoApp::Initialize()
 
 	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
-	mCamera.LookAt(
-		XMFLOAT3(5.0f, 4.0f, -15.0f),
-		XMFLOAT3(0.0f, 1.0f, 0.0f),
-		XMFLOAT3(0.0f, 1.0f, 0.0f));
+	mCamera.SetPosition(0.0f, 2.0f, -15.0f);
 
 	LoadTextures();
 	BuildRootSignature();
@@ -59,9 +71,10 @@ void QuatDemoApp::LoadTextures()
 	std::vector<std::wstring> filenames 
 	{ 
 		L"bricks2.dds",
+		L"stone.dds",
 		L"tile.dds",
+		L"WoodCrate01.dds",
 		L"white1x1.dds",
-		L"grasscube1024.dds"
 	};
 	
 	for_each(filenames.begin(), filenames.end(), [&](auto& curFilename) {
@@ -75,16 +88,14 @@ void QuatDemoApp::LoadTextures()
 
 void QuatDemoApp::BuildRootSignature()
 {
-	CD3DX12_DESCRIPTOR_RANGE cubeTexTable{}, texTable{};
-	cubeTexTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0);
-	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 1, 0);
+	CD3DX12_DESCRIPTOR_RANGE texTable{};
+	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 5, 0, 0);
 
-	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
 	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &cubeTexTable, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[3].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = d3dUtil::GetStaticSamplers();
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc{
@@ -123,16 +134,6 @@ void QuatDemoApp::BuildDescriptorHeaps()
 		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 
-		if (curTex->Filename.find(L"cube") != std::wstring::npos)
-		{
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
-			srvDesc.TextureCube.MostDetailedMip = 0;
-			srvDesc.TextureCube.MipLevels = curTexResource->GetDesc().MipLevels;
-			srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
-			srvDesc.Format = curTexResource->GetDesc().Format;
-			mSkyTexHeapIndex = index;
-		}
-		
 		CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDesc{ mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart() };
 		hCpuDesc.Offset(index++, mCbvSrvUavDescriptorSize);
 		md3dDevice->CreateShaderResourceView(curTex->Resource.Get(), &srvDesc, hCpuDesc);
@@ -143,9 +144,6 @@ void QuatDemoApp::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders/StandardVS.hlsl", nullptr, "main", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders/OpaquePS.hlsl", nullptr, "main", "ps_5_1");
-
-	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/SkyVS.hlsl", nullptr, "main", "vs_5_1");
-	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/SkyPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mInputLayout =
 	{
@@ -309,9 +307,24 @@ void QuatDemoApp::BuildSkullGeometry()
 		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
 		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
 
-		vertices[i].TexC = { 0.0f, 0.0f };
-
 		XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
+
+		// Project point onto unit sphere and generate spherical texture coordinates.
+		XMFLOAT3 spherePos;
+		XMStoreFloat3(&spherePos, XMVector3Normalize(P));
+
+		float theta = atan2f(spherePos.z, spherePos.x);
+
+		// Put in [0, 2pi].
+		if (theta < 0.0f)
+			theta += XM_2PI;
+
+		float phi = acosf(spherePos.y);
+
+		float u = theta / (2.0f * XM_PI);
+		float v = phi / XM_PI;
+
+		vertices[i].TexC = { u, v };
 
 		vMin = XMVectorMin(vMin, P);
 		vMax = XMVectorMax(vMax, P);
@@ -387,16 +400,16 @@ void QuatDemoApp::BuildMaterials()
 		};
 
 	MakeMaterial("bricks0", 0, 0, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
-	MakeMaterial("tile0", 1, 1, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
-	MakeMaterial("mirror0", 2, 2, { 0.0f, 0.0f, 0.1f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("skullMat", 3, 2, { 0.8f, 0.8f, 0.8f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.2f);
-	MakeMaterial("sky", 4, 3, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
+	MakeMaterial("stone0", 1, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
+	MakeMaterial("tile0", 2, 2, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
+	MakeMaterial("crate0", 3, 3, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.05f, 0.05f, 0.05f }, 0.7f);
+	MakeMaterial("skullMat", 4, 4, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.2f);
 }
 
 void QuatDemoApp::BuildRenderItems()
 {
 	auto MakeRenderItem = [&, objIdx{ 0 }](std::string&& geoName, std::string&& smName, std::string&& matName,
-		const XMMATRIX& world, const XMMATRIX& texTransform, RenderLayer renderLayer, bool visible = true) mutable {
+		const XMMATRIX& world, const XMMATRIX& texTransform) mutable {
 		auto renderItem = std::make_unique<RenderItem>();
 		auto& sm = mGeometries[geoName]->DrawArgs[smName];
 		renderItem->Geo = mGeometries[geoName].get();
@@ -408,17 +421,16 @@ void QuatDemoApp::BuildRenderItems()
 		renderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		XMStoreFloat4x4(&renderItem->World, world);
 		XMStoreFloat4x4(&renderItem->TexTransform, texTransform);
-		renderItem->Visible = visible;
-		mRitemLayer[renderLayer].emplace_back(renderItem.get());
+		if (smName == "skull") mSkullRitem = renderItem.get();
+		mOpaqueRitems.emplace_back(renderItem.get());
 		mAllRitems.emplace_back(std::move(renderItem));
 	};
 
-	MakeRenderItem("shapeGeo", "sphere", "sky", XMMatrixScaling(5000.0f, 5000.0f, 5000.0f), XMMatrixIdentity(), RenderLayer::Sky);
-	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
-		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
-	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f),
-		XMMatrixIdentity(), RenderLayer::Opaque);
-	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
+	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f),
+		XMMatrixIdentity());
+	MakeRenderItem("shapeGeo", "box", "stone0", XMMatrixScaling(3.0f, 1.0f, 3.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
+		XMMatrixScaling(1.0f, 1.0f, 1.0f));
+	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f));
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
 	for (auto i : Range(0, 5))
@@ -429,11 +441,11 @@ void QuatDemoApp::BuildRenderItems()
 		XMMATRIX leftSphereWorld = XMMatrixTranslation(-5.0f, 3.5f, -10.0f + i * 5.0f);
 		XMMATRIX rightSphereWorld = XMMatrixTranslation(+5.0f, 3.5f, -10.0f + i * 5.0f);
 
-		MakeRenderItem("shapeGeo", "cylinder", "bricks0", leftCylWorld, brickTexTransform, RenderLayer::Opaque);
-		MakeRenderItem("shapeGeo", "cylinder", "bricks0", rightCylWorld, brickTexTransform, RenderLayer::Opaque);
+		MakeRenderItem("shapeGeo", "cylinder", "bricks0", leftCylWorld, brickTexTransform);
+		MakeRenderItem("shapeGeo", "cylinder", "bricks0", rightCylWorld, brickTexTransform);
 
-		MakeRenderItem("shapeGeo", "sphere", "mirror0", leftSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
-		MakeRenderItem("shapeGeo", "sphere", "mirror0", rightSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
+		MakeRenderItem("shapeGeo", "sphere", "stone0", leftSphereWorld, XMMatrixIdentity());
+		MakeRenderItem("shapeGeo", "sphere", "stone0", rightSphereWorld, XMMatrixIdentity());
 	}
 }
 
@@ -472,26 +484,10 @@ void QuatDemoApp::MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
 	inoutDesc->SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 }
 
-void QuatDemoApp::MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc)
-{
-	inoutDesc->RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	inoutDesc->DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	inoutDesc->pRootSignature = mRootSignature.Get();
-	inoutDesc->VS = GetShaderBytecode(mShaders, "skyVS");
-	inoutDesc->PS = GetShaderBytecode(mShaders, "skyPS");
-}
-
 void QuatDemoApp::MakePSOPipelineState(GraphicsPSO psoType)
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc{};
 	MakeOpaqueDesc(&psoDesc);
-
-	switch (psoType)
-	{
-	case GraphicsPSO::Opaque:		break;
-	case GraphicsPSO::Sky:	MakeSkyDesc(&psoDesc);		break;
-	default: assert(!"wrong type");
-	}
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPSOs[psoType])));
 }
@@ -626,6 +622,16 @@ void QuatDemoApp::Update(const GameTimer& gt)
 {
 	OnKeyboardInput(gt);
 
+	mAnimTimePos += gt.DeltaTime();
+	if (mAnimTimePos >= mSkullAnimation.GetEndTime())
+	{
+		mAnimTimePos = 0.0f;
+	}
+
+	mSkullAnimation.Interpolate(mAnimTimePos, mSkullWorld);
+	mSkullRitem->World = mSkullWorld;
+	mSkullRitem->NumFramesDirty = gNumFrameResources;
+
 	mFrameResIdx = (mFrameResIdx + 1) % gNumFrameResources;
 	mCurFrameRes = mFrameResources[mFrameResIdx].get();
 	if (mCurFrameRes->Fence != 0 && mFence->GetCompletedValue() < mCurFrameRes->Fence)
@@ -690,16 +696,9 @@ void QuatDemoApp::Draw(const GameTimer& gt)
 	auto matBuffer = mCurFrameRes->MaterialBuffer->Resource();
 	mCommandList->SetGraphicsRootShaderResourceView(2, matBuffer->GetGPUVirtualAddress());
 
-	CD3DX12_GPU_DESCRIPTOR_HANDLE skyTexDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	skyTexDescriptor.Offset(mSkyTexHeapIndex, mCbvSrvUavDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(3, skyTexDescriptor);
+	mCommandList->SetGraphicsRootDescriptorTable(3, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
-	mCommandList->SetGraphicsRootDescriptorTable(4, mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Opaque]);
-
-	mCommandList->SetPipelineState(mPSOs[GraphicsPSO::Sky].Get());
-	DrawRenderItems(mCommandList.Get(), mRitemLayer[RenderLayer::Sky]);
+	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
 	mCommandList->ResourceBarrier(1, &RvToLv(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT)));

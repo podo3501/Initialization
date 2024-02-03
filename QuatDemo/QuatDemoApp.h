@@ -7,6 +7,7 @@
 #include "../Common/d3dApp.h"
 #include "../Common/MathHelper.h"
 #include "../Common/Camera.h"
+#include "AnimationHelper.h"
 #include <map>
 
 class Waves;
@@ -37,24 +38,15 @@ struct RenderItem
 	bool Visible = true;
 };
 
-enum class RenderLayer : int
-{
-	Opaque = 0,
-	Sky,
-	Count
-};
-
 enum class GraphicsPSO : int
 {
 	Opaque = 0,
-	Sky,
 	Count
 };
 
 constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> GraphicsPSO_ALL
 {
 	GraphicsPSO::Opaque, 
-	GraphicsPSO::Sky,
 };
 
 class QuatDemoApp : public D3DApp
@@ -76,6 +68,7 @@ private:
 	virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
 	virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
+	void DefineSkullAnimation();
 	void OnKeyboardInput(const GameTimer& gt);
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
@@ -91,7 +84,6 @@ private:
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
-	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakePSOPipelineState(GraphicsPSO psoType);
 	void BuildPSOs();
 	void BuildRenderItems();
@@ -108,14 +100,12 @@ private:
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
-	//std::vector<RenderItem*> mOpaqueRitems;
+	std::vector<RenderItem*> mOpaqueRitems;
 	std::vector<std::unique_ptr<FrameResource>> mFrameResources;
 	std::unordered_map<GraphicsPSO, Microsoft::WRL::ComPtr<ID3D12PipelineState>> mPSOs;
-	std::unordered_map<RenderLayer, std::vector<RenderItem*>> mRitemLayer;
-	RenderItem* mPickedRitem = nullptr;
+
 	FrameResource* mCurFrameRes = nullptr;
 
-	UINT mSkyTexHeapIndex = 0;
 	UINT mFrameResIdx = 0;
 
 	float mTheta = 1.5f * DirectX::XM_PI;
@@ -126,6 +116,11 @@ private:
 	float mSunPhi = DirectX::XM_PIDIV4;
 
 	POINT mLastMousePos;
-
 	Camera mCamera;
+
+	RenderItem* mSkullRitem = nullptr;
+	DirectX::XMFLOAT4X4 mSkullWorld = MathHelper::Identity4x4();
+
+	BoneAnimation mSkullAnimation;
+	float mAnimTimePos{ 0.0f };
 };

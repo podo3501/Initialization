@@ -127,10 +127,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AnimationHelper.cpp" />
     <ClCompile Include="FrameResource.cpp" />
     <ClCompile Include="QuatDemoApp.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AnimationHelper.h" />
     <ClInclude Include="FrameResource.h" />
     <ClInclude Include="QuatDemoApp.h" />
   </ItemGroup>
@@ -139,19 +141,10 @@
     <None Include="Shaders\GraphicsHeader.hlsli" />
     <None Include="Shaders\LightingUtil.hlsli" />
     <None Include="Shaders\VertexInout.hlsli" />
-    <None Include="Shaders\VertexInout_Sky.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\OpaquePS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
-    </FxCompile>
-    <FxCompile Include="Shaders\SkyPS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
-    </FxCompile>
-    <FxCompile Include="Shaders\SkyVS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.1</ShaderModel>
     </FxCompile>
     <FxCompile Include="Shaders\StandardVS.hlsl">

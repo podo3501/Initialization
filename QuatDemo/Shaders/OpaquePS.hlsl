@@ -41,11 +41,6 @@ float4 main(VertexOut pin) : SV_Target
     
     float4 litColor = ambient+directLight;
     
-    float3 r = reflect(-toEyeW, pin.NormalW);
-    float4 reflectionColor = gCubeMap.Sample(gsamLinearWrap, r);
-    float3 fresnelFactor = SchlickFresnel(fresnelR0, pin.NormalW, r);
-    litColor.rgb += shininess * fresnelFactor * reflectionColor.rgb;
-    
 #ifdef FOG
     float fogAmount = saturate((distToEye - gFogStart) / gFogRange);
     litColor = lerp(litColor, gFogColor, fogAmount);
