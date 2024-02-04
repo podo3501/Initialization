@@ -128,13 +128,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="FrameResource.cpp" />
+    <ClCompile Include="LoadM3d.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
+    <ClCompile Include="SkinnedData.cpp" />
     <ClCompile Include="SkinnedMeshApp.cpp" />
     <ClCompile Include="Ssao.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FrameResource.h" />
+    <ClInclude Include="LoadM3d.h" />
     <ClInclude Include="ShadowMap.h" />
+    <ClInclude Include="SkinnedData.h" />
     <ClInclude Include="SkinnedMeshApp.h" />
     <ClInclude Include="Ssao.h" />
   </ItemGroup>

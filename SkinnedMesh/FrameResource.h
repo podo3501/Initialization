@@ -77,6 +77,16 @@ struct Vertex
     DirectX::XMFLOAT3 TangentU;
 };
 
+struct SkinnedVertex
+{
+    DirectX::XMFLOAT3 pos{};
+    DirectX::XMFLOAT3 Normal{};
+    DirectX::XMFLOAT2 TexC{};
+    DirectX::XMFLOAT3 TangentU{};
+    DirectX::XMFLOAT3 BoneWeights{};
+    BYTE BoneIndices[4]{};
+};
+
 // Stores the resources needed for the CPU to build the command lists
 // for a frame.  
 struct FrameResource

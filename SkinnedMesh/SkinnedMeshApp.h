@@ -8,11 +8,31 @@
 #include "../Common/MathHelper.h"
 #include "../Common/Camera.h"
 #include "FrameResource.h"
+#include "SkinnedData.h"
+#include "LoadM3d.h"
 #include <map>
 
 class ShadowMap;
 class Ssao;
 struct FrameResource;
+
+struct SkinnedModelInstance
+{
+	SkinnedData* SkinnedInfo = nullptr;
+	std::vector<DirectX::XMFLOAT4X4> FinalTransforms;
+	std::string ClipName;
+	float TimePos{ 0.0f };
+
+	void UpdateSkinnedAnimation(float dt)
+	{
+		TimePos += dt;
+
+		if (TimePos > SkinnedInfo->GetClipEndTime(ClipName))
+			TimePos = 0.0f;
+
+		SkinnedInfo->GetFinalTransforms(ClipName, TimePos, FinalTransforms);
+	}
+};
 
 struct RenderItem
 {
@@ -37,11 +57,16 @@ struct RenderItem
 	DirectX::BoundingSphere BSphere{};
 
 	bool Visible = true;
+
+	UINT SkinnedCBIndex = -1;
+
+	SkinnedModelInstance* SkinnedModelInst = nullptr;
 };
 
 enum class RenderLayer : int
 {
 	Opaque = 0,
+	SkinnedOpaque,
 	Debug,
 	Sky,
 	Count
@@ -99,6 +124,7 @@ private:
 	void UpdateShadowPassCB(const GameTimer& gt);
 	void UpdateSsaoCB(const GameTimer& gt);
 
+	void LoadSkinnedModel();
 	void LoadTextures();
 	void BuildRootSignature();
 	void BuildSsaoRootSignature();
@@ -180,4 +206,13 @@ private:
 	POINT mLastMousePos;
 
 	Camera mCamera;
+
+	UINT mSkinnedSrvHeapStart = 0;
+	std::string mSkinnedModelFilename{ "Models/soldier.m3d" };
+	std::unique_ptr<SkinnedModelInstance> mSkinnedModelInst{ nullptr };
+	SkinnedData mSkinnedInfo{};
+	std::vector<M3DLoader::Subset> mSkinnedSubsets;
+	std::vector<M3DLoader::M3dMaterial> mSkinnedMats;
+	std::vector<std::string> mSkinnedTextureNames;
+	
 };

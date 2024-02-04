@@ -41,6 +41,7 @@ bool SkinnedMeshApp::Initialize()
 		mCommandList.Get(),
 		mClientWidth, mClientHeight);
 
+	LoadSkinnedModel();
 	LoadTextures();
 	BuildRootSignature();
 	BuildSsaoRootSignature();
@@ -84,6 +85,59 @@ void SkinnedMeshApp::CreateRtvAndDsvDescriptorHeaps()
 		&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
 }
 
+void SkinnedMeshApp::LoadSkinnedModel()
+{
+	std::vector<M3DLoader::SkinnedVertex> vertices;
+	std::vector<std::uint16_t> indices;
+
+	M3DLoader m3dLoader;
+	m3dLoader.LoadM3d(mSkinnedModelFilename, vertices, indices,
+		mSkinnedSubsets, mSkinnedMats, mSkinnedInfo);
+
+	mSkinnedModelInst = std::make_unique<SkinnedModelInstance>();
+	mSkinnedModelInst->SkinnedInfo = &mSkinnedInfo;
+	mSkinnedModelInst->FinalTransforms.resize(mSkinnedInfo.BoneCount());
+	mSkinnedModelInst->ClipName = "Take1";
+	mSkinnedModelInst->TimePos = 0.0f;
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(SkinnedVertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = mSkinnedModelFilename;
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(SkinnedVertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	for (UINT i = 0; i < (UINT)mSkinnedSubsets.size(); ++i)
+	{
+		SubmeshGeometry submesh;
+		std::string name = "sm_" + std::to_string(i);
+
+		submesh.IndexCount = (UINT)mSkinnedSubsets[i].FaceCount * 3;
+		submesh.StartIndexLocation = mSkinnedSubsets[i].FaceStart * 3;
+		submesh.BaseVertexLocation = 0;
+
+		geo->DrawArgs[name] = submesh;
+	}
+
+	mGeometries[geo->Name] = std::move(geo);
+}
+
 void SkinnedMeshApp::LoadTextures()
 {
 	std::vector<std::wstring> filenames 
@@ -94,8 +148,25 @@ void SkinnedMeshApp::LoadTextures()
 		L"tile_nmap.dds",
 		L"white1x1.dds",
 		L"default_nmap.dds",
-		L"sunsetcube1024.dds"
+		L"desertcube1024.dds"
 	};
+
+	for_each(mSkinnedMats.begin(), mSkinnedMats.end(), [&](auto& mat) {
+		std::string diffuseName = mat.DiffuseMapName;
+		std::string normalName = mat.NormalMapName;
+
+		std::wstring diffuseFilename = L"../Textures/" + AnsiToWString(diffuseName);
+		std::wstring normalFilename = L"../Textures/" + AnsiToWString(normalName);
+
+		diffuseName = diffuseName.substr(0, diffuseName.find_last_of("."));
+		normalName = normalName.substr(0, normalName.find_last_of("."));
+
+		mSkinnedTextureNames.push_back(diffuseName);
+		filenames.emplace_back(diffuseFilename);
+
+		mSkinnedTextureNames.push_back(normalName);
+		filenames.emplace_back(normalFilename);
+		});
 	
 	for_each(filenames.begin(), filenames.end(), [&](auto& curFilename) {
 		auto tex = std::make_unique<Texture>();
@@ -126,14 +197,15 @@ void SkinnedMeshApp::BuildRootSignature()
 	texTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 3, 0, 0);
 
 	CD3DX12_DESCRIPTOR_RANGE texTable1;
-	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 3, 0);
+	texTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 48, 3, 0);
 
-	CD3DX12_ROOT_PARAMETER slotRootParameter[5];
+	CD3DX12_ROOT_PARAMETER slotRootParameter[6];
 	slotRootParameter[0].InitAsConstantBufferView(0);
 	slotRootParameter[1].InitAsConstantBufferView(1);
-	slotRootParameter[2].InitAsShaderResourceView(0, 1);
-	slotRootParameter[3].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
-	slotRootParameter[4].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[2].InitAsConstantBufferView(2);
+	slotRootParameter[3].InitAsShaderResourceView(0, 1);
+	slotRootParameter[4].InitAsDescriptorTable(1, &texTable0, D3D12_SHADER_VISIBILITY_PIXEL);
+	slotRootParameter[5].InitAsDescriptorTable(1, &texTable1, D3D12_SHADER_VISIBILITY_PIXEL);
 
 	auto staticSamplers = d3dUtil::GetStaticSamplers();
 	staticSamplers.emplace_back(ShadowSampler());
