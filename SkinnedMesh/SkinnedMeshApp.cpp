@@ -41,14 +41,13 @@ bool SkinnedMeshApp::Initialize()
 		mCommandList.Get(),
 		mClientWidth, mClientHeight);
 
-	LoadSkinnedModel();
 	LoadTextures();
 	BuildRootSignature();
 	BuildSsaoRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildShapeGeometry();
-	BuildSkullGeometry();
+	LoadSkinnedModel();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -85,59 +84,6 @@ void SkinnedMeshApp::CreateRtvAndDsvDescriptorHeaps()
 		&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
 }
 
-void SkinnedMeshApp::LoadSkinnedModel()
-{
-	std::vector<M3DLoader::SkinnedVertex> vertices;
-	std::vector<std::uint16_t> indices;
-
-	M3DLoader m3dLoader;
-	m3dLoader.LoadM3d(mSkinnedModelFilename, vertices, indices,
-		mSkinnedSubsets, mSkinnedMats, mSkinnedInfo);
-
-	mSkinnedModelInst = std::make_unique<SkinnedModelInstance>();
-	mSkinnedModelInst->SkinnedInfo = &mSkinnedInfo;
-	mSkinnedModelInst->FinalTransforms.resize(mSkinnedInfo.BoneCount());
-	mSkinnedModelInst->ClipName = "Take1";
-	mSkinnedModelInst->TimePos = 0.0f;
-
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(SkinnedVertex);
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
-
-	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = mSkinnedModelFilename;
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-	geo->VertexByteStride = sizeof(SkinnedVertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	for (UINT i = 0; i < (UINT)mSkinnedSubsets.size(); ++i)
-	{
-		SubmeshGeometry submesh;
-		std::string name = "sm_" + std::to_string(i);
-
-		submesh.IndexCount = (UINT)mSkinnedSubsets[i].FaceCount * 3;
-		submesh.StartIndexLocation = mSkinnedSubsets[i].FaceStart * 3;
-		submesh.BaseVertexLocation = 0;
-
-		geo->DrawArgs[name] = submesh;
-	}
-
-	mGeometries[geo->Name] = std::move(geo);
-}
-
 void SkinnedMeshApp::LoadTextures()
 {
 	std::vector<std::wstring> filenames 
@@ -147,8 +93,7 @@ void SkinnedMeshApp::LoadTextures()
 		L"tile.dds",
 		L"tile_nmap.dds",
 		L"white1x1.dds",
-		L"default_nmap.dds",
-		L"desertcube1024.dds"
+		L"default_nmap.dds"
 	};
 
 	for_each(mSkinnedMats.begin(), mSkinnedMats.end(), [&](auto& mat) {
@@ -167,6 +112,8 @@ void SkinnedMeshApp::LoadTextures()
 		mSkinnedTextureNames.push_back(normalName);
 		filenames.emplace_back(normalFilename);
 		});
+
+	filenames.emplace_back(L"desertcube1024.dds");
 	
 	for_each(filenames.begin(), filenames.end(), [&](auto& curFilename) {
 		auto tex = std::make_unique<Texture>();
@@ -335,7 +282,7 @@ void SkinnedMeshApp::BuildDescriptorHeaps()
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	srvHeapDesc.NodeMask = 0;
-	srvHeapDesc.NumDescriptors = 18;
+	srvHeapDesc.NumDescriptors = 64;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -365,17 +312,18 @@ void SkinnedMeshApp::BuildDescriptorHeaps()
 		md3dDevice->CreateShaderResourceView(curTex->Resource.Get(), &srvDesc, hCpuDesc);
 		});
 
-	UINT mSsaoHeapIndexStart{ 0 };
-	UINT mSsaoAmbientMapIndex{ 0 };
-	UINT mNullTexSrvIndex1{ 0 };
-	UINT mNullTexSrvIndex2{ 0 };
+	mSkinnedSrvHeapStart = 6;
+	UINT ssaoHeapIndexStart{ 0 };
+	UINT ssaoAmbientMapIndex{ 0 };
+	UINT nullTexSrvIndex1{ 0 };
+	UINT nullTexSrvIndex2{ 0 };
 
 	mShadowMapHeapIndex = mSkyTexHeapIndex + 1;
-	mSsaoHeapIndexStart = mShadowMapHeapIndex + 1;
-	mSsaoAmbientMapIndex = mSsaoHeapIndexStart + 3;
-	mNullCubeSrvIndex = mSsaoHeapIndexStart + 5;
-	mNullTexSrvIndex1 = mNullCubeSrvIndex + 1;
-	mNullTexSrvIndex2 = mNullTexSrvIndex1 + 1;
+	ssaoHeapIndexStart = mShadowMapHeapIndex + 1;
+	ssaoAmbientMapIndex = ssaoHeapIndexStart + 3;
+	mNullCubeSrvIndex = ssaoHeapIndexStart + 5;
+	nullTexSrvIndex1 = mNullCubeSrvIndex + 1;
+	nullTexSrvIndex2 = nullTexSrvIndex1 + 1;
 
 	auto nullSrv = GetCpuSrv(mNullCubeSrvIndex);
 	mNullSrv = GetGpuSrv(mNullCubeSrvIndex);
@@ -400,8 +348,8 @@ void SkinnedMeshApp::BuildDescriptorHeaps()
 
 	mSsao->BuildDescriptors(
 		mDepthStencilBuffer.Get(),
-		GetCpuSrv(mSsaoHeapIndexStart),
-		GetGpuSrv(mSsaoHeapIndexStart),
+		GetCpuSrv(ssaoHeapIndexStart),
+		GetGpuSrv(ssaoHeapIndexStart),
 		GetRtv(SwapChainBufferCount),
 		mCbvSrvUavDescriptorSize,
 		mRtvDescriptorSize);
@@ -410,11 +358,14 @@ void SkinnedMeshApp::BuildDescriptorHeaps()
 void SkinnedMeshApp::BuildShadersAndInputLayout()
 {
 	const D3D_SHADER_MACRO alphaTestDefines[] = { "ALPHA_TEST", "1", NULL, NULL };
+	const D3D_SHADER_MACRO skinnedDefines[] = { "SKINNED", "1", NULL, NULL };
 
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders/StandardVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["skinnedVS"] = d3dUtil::CompileShader(L"Shaders/StandardVS.hlsl", skinnedDefines, "main", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders/OpaquePS.hlsl", nullptr, "main", "ps_5_1");
 
 	mShaders["shadowVS"] = d3dUtil::CompileShader(L"Shaders/ShadowsVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["skinnedShadowVS"] = d3dUtil::CompileShader(L"Shaders/ShadowsVS.hlsl", skinnedDefines, "main", "vs_5_1");
 	mShaders["shadowOpaquePS"] = d3dUtil::CompileShader(L"Shaders/ShadowsPS.hlsl", nullptr, "main", "ps_5_1");
 	mShaders["ShadowAlphaTestedPS"] = d3dUtil::CompileShader(L"Shaders/ShadowsPS.hlsl", alphaTestDefines,
 		"main", "ps_5_1");
@@ -423,6 +374,7 @@ void SkinnedMeshApp::BuildShadersAndInputLayout()
 	mShaders["debugPS"] = d3dUtil::CompileShader(L"Shaders/ShadowDebugPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mShaders["drawNormalsVS"] = d3dUtil::CompileShader(L"Shaders/DrawNormalsVS.hlsl", nullptr, "main", "vs_5_1");
+	mShaders["skinnedDrawNormalsVS"] = d3dUtil::CompileShader(L"Shaders/DrawNormalsVS.hlsl", skinnedDefines, "main", "vs_5_1");
 	mShaders["drawNormalsPS"] = d3dUtil::CompileShader(L"Shaders/DrawNormalsPS.hlsl", nullptr, "main", "ps_5_1");
 
 	mShaders["ssaoVS"] = d3dUtil::CompileShader(L"Shaders/SsaoVS.hlsl", nullptr, "main", "vs_5_1");
@@ -440,6 +392,16 @@ void SkinnedMeshApp::BuildShadersAndInputLayout()
 		{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"TANGENT", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+	};
+
+	mSkinnedInputLayout =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "WEIGHTS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 44, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "BONEINDICES", 0, DXGI_FORMAT_R8G8B8A8_UINT, 0, 56, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 	};
 }
 
@@ -590,89 +552,27 @@ void SkinnedMeshApp::BuildShapeGeometry()
 	mGeometries[geo->Name] = std::move(geo);
 }
 
-void SkinnedMeshApp::BuildSkullGeometry()
+
+void SkinnedMeshApp::LoadSkinnedModel()
 {
-	std::ifstream fin("Models/skull.txt");
+	std::vector<M3DLoader::SkinnedVertex> vertices;
+	std::vector<std::uint16_t> indices;
 
-	if (!fin)
-	{
-		MessageBox(0, L"Models/skull.txt not found.", 0, 0);
-		return;
-	}
+	M3DLoader m3dLoader;
+	m3dLoader.LoadM3d(mSkinnedModelFilename, vertices, indices,
+		mSkinnedSubsets, mSkinnedMats, mSkinnedInfo);
 
-	UINT vcount = 0;
-	UINT tcount = 0;
-	std::string ignore;
+	mSkinnedModelInst = std::make_unique<SkinnedModelInstance>();
+	mSkinnedModelInst->SkinnedInfo = &mSkinnedInfo;
+	mSkinnedModelInst->FinalTransforms.resize(mSkinnedInfo.BoneCount());
+	mSkinnedModelInst->ClipName = "Take1";
+	mSkinnedModelInst->TimePos = 0.0f;
 
-	fin >> ignore >> vcount;
-	fin >> ignore >> tcount;
-	fin >> ignore >> ignore >> ignore >> ignore;
-
-	XMFLOAT3 vMinf3(+MathHelper::Infinity, +MathHelper::Infinity, +MathHelper::Infinity);
-	XMFLOAT3 vMaxf3(-MathHelper::Infinity, -MathHelper::Infinity, -MathHelper::Infinity);
-
-	XMVECTOR vMin = XMLoadFloat3(&vMinf3);
-	XMVECTOR vMax = XMLoadFloat3(&vMaxf3);
-
-	std::vector<Vertex> vertices(vcount);
-	for (UINT i = 0; i < vcount; ++i)
-	{
-		fin >> vertices[i].Pos.x >> vertices[i].Pos.y >> vertices[i].Pos.z;
-		fin >> vertices[i].Normal.x >> vertices[i].Normal.y >> vertices[i].Normal.z;
-
-		vertices[i].TexC = { 0.0f, 0.0f };
-
-		XMVECTOR P = XMLoadFloat3(&vertices[i].Pos);
-
-		XMVECTOR N = XMLoadFloat3(&vertices[i].Normal);
-
-		// Generate a tangent vector so normal mapping works.  We aren't applying
-		// a texture map to the skull, so we just need any tangent vector so that
-		// the math works out to give us the original interpolated vertex normal.
-		XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-		if (fabsf(XMVectorGetX(XMVector3Dot(N, up))) < 1.0f - 0.001f)
-		{
-			XMVECTOR T = XMVector3Normalize(XMVector3Cross(up, N));
-			XMStoreFloat3(&vertices[i].TangentU, T);
-		}
-		else
-		{
-			up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-			XMVECTOR T = XMVector3Normalize(XMVector3Cross(N, up));
-			XMStoreFloat3(&vertices[i].TangentU, T);
-		}
-
-
-		vMin = XMVectorMin(vMin, P);
-		vMax = XMVectorMax(vMax, P);
-	}
-
-	BoundingBox bounds;
-	XMStoreFloat3(&bounds.Center, 0.5f * (vMin + vMax));
-	XMStoreFloat3(&bounds.Extents, 0.5f * (vMax - vMin));
-
-	fin >> ignore;
-	fin >> ignore;
-	fin >> ignore;
-
-	std::vector<std::int32_t> indices(3 * tcount);
-	for (UINT i = 0; i < tcount; ++i)
-	{
-		fin >> indices[i * 3 + 0] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
-	}
-
-	fin.close();
-
-	//
-	// Pack the indices of all the meshes into one index buffer.
-	//
-
-	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-
-	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::int32_t);
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(SkinnedVertex);
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
 	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "skullGeo";
+	geo->Name = mSkinnedModelFilename;
 
 	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
 	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
@@ -686,25 +586,29 @@ void SkinnedMeshApp::BuildSkullGeometry()
 	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
 
-	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexByteStride = sizeof(SkinnedVertex);
 	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R32_UINT;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
 	geo->IndexBufferByteSize = ibByteSize;
 
-	SubmeshGeometry submesh;
-	submesh.IndexCount = (UINT)indices.size();
-	submesh.StartIndexLocation = 0;
-	submesh.BaseVertexLocation = 0;
-	submesh.BBounds = bounds;
+	for (UINT i = 0; i < (UINT)mSkinnedSubsets.size(); ++i)
+	{
+		SubmeshGeometry submesh;
+		std::string name = "sm_" + std::to_string(i);
 
-	geo->DrawArgs["skull"] = submesh;
+		submesh.IndexCount = (UINT)mSkinnedSubsets[i].FaceCount * 3;
+		submesh.StartIndexLocation = mSkinnedSubsets[i].FaceStart * 3;
+		submesh.BaseVertexLocation = 0;
+
+		geo->DrawArgs[name] = submesh;
+	}
 
 	mGeometries[geo->Name] = std::move(geo);
 }
 
 void SkinnedMeshApp::BuildMaterials()
 {
-	auto MakeMaterial = [&](std::string&& name, int matCBIdx, int diffuseSrvHeapIdx, int normalSrvHeapIdx,
+	auto MakeMaterial = [&](std::string name, int matCBIdx, int diffuseSrvHeapIdx, int normalSrvHeapIdx,
 		XMFLOAT4 diffuseAlbedo, XMFLOAT3 fresnelR0, float rough) {
 			auto curMat = std::make_unique<Material>();
 			curMat->Name = name;
@@ -718,16 +622,23 @@ void SkinnedMeshApp::BuildMaterials()
 		};
 
 	MakeMaterial("bricks0", 0, 0, 1, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 0.3f);
-	MakeMaterial("tile0", 2, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
-	MakeMaterial("mirror0", 3, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
-	MakeMaterial("skullMat", 3, 4, 5, { 0.3f, 0.3f, 0.3f, 1.0f }, { 0.6f, 0.6f, 0.6f }, 0.2f);
-	MakeMaterial("sky", 4, 6, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
+	MakeMaterial("tile0", 1, 2, 3, { 0.9f, 0.9f, 0.9f, 1.0f }, { 0.2f, 0.2f, 0.2f }, 0.1f);
+	MakeMaterial("mirror0", 2, 4, 5, { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.98f, 0.97f, 0.95f }, 0.1f);
+	MakeMaterial("sky", 3, 6, 7, { 1.0f, 1.0f, 1.0f, 1.0f }, { 0.1f, 0.1f, 0.1f }, 1.0f);
+
+	UINT matCBIndex = static_cast<UINT>(mMaterials.size());
+	UINT srvHeapIndex = mSkinnedSrvHeapStart;
+	for_each(mSkinnedMats.begin(), mSkinnedMats.end(), [&](auto& skinMat) {
+		MakeMaterial(skinMat.Name, matCBIndex++, srvHeapIndex++, srvHeapIndex++,
+			skinMat.DiffuseAlbedo, skinMat.FresnelR0, skinMat.Roughness);
+		});
 }
 
 void SkinnedMeshApp::BuildRenderItems()
 {
-	auto MakeRenderItem = [&, objIdx{ 0 }](std::string&& geoName, std::string&& smName, std::string&& matName,
-		const XMMATRIX& world, const XMMATRIX& texTransform, RenderLayer renderLayer, bool visible = true) mutable {
+	auto MakeRenderItem = [&, objIdx{ 0 }](std::string geoName, std::string smName, std::string matName,
+		const XMMATRIX& world, const XMMATRIX& texTransform, RenderLayer renderLayer, bool visible = true, 
+		UINT skinnedCBIdx = -1, SkinnedModelInstance* skinnedModelInst = nullptr ) mutable {
 		auto renderItem = std::make_unique<RenderItem>();
 		auto& sm = mGeometries[geoName]->DrawArgs[smName];
 		renderItem->Geo = mGeometries[geoName].get();
@@ -740,6 +651,8 @@ void SkinnedMeshApp::BuildRenderItems()
 		XMStoreFloat4x4(&renderItem->World, world);
 		XMStoreFloat4x4(&renderItem->TexTransform, texTransform);
 		renderItem->Visible = visible;
+		renderItem->SkinnedCBIndex = skinnedCBIdx;
+		renderItem->SkinnedModelInst = skinnedModelInst;
 		mRitemLayer[renderLayer].emplace_back(renderItem.get());
 		mAllRitems.emplace_back(std::move(renderItem));
 	};
@@ -747,9 +660,7 @@ void SkinnedMeshApp::BuildRenderItems()
 	MakeRenderItem("shapeGeo", "sphere", "sky", XMMatrixScaling(5000.0f, 5000.0f, 5000.0f), XMMatrixIdentity(), RenderLayer::Sky);
 	MakeRenderItem("shapeGeo", "quad", "bricks0", XMMatrixIdentity(), XMMatrixIdentity(), RenderLayer::Debug);
 	MakeRenderItem("shapeGeo", "box", "bricks0", XMMatrixScaling(2.0f, 1.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.5f, 0.0f),
-		XMMatrixScaling(1.0f, 0.5f, 1.0f), RenderLayer::Opaque);
-	MakeRenderItem("skullGeo", "skull", "skullMat", XMMatrixScaling(0.4f, 0.4f, 0.4f) * XMMatrixTranslation(0.0f, 1.0f, 0.0f),
-		XMMatrixIdentity(), RenderLayer::Opaque);
+		XMMatrixScaling(1.0f, 1.0f, 1.0f), RenderLayer::Opaque);
 	MakeRenderItem("shapeGeo", "grid", "tile0", XMMatrixIdentity(), XMMatrixScaling(8.0f, 8.0f, 1.0f), RenderLayer::Opaque);
 
 	XMMATRIX brickTexTransform = XMMatrixScaling(1.5f, 2.0f, 1.0f);
@@ -767,6 +678,20 @@ void SkinnedMeshApp::BuildRenderItems()
 		MakeRenderItem("shapeGeo", "sphere", "mirror0", leftSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
 		MakeRenderItem("shapeGeo", "sphere", "mirror0", rightSphereWorld, XMMatrixIdentity(), RenderLayer::Opaque);
 	}
+
+	for(auto i : Range(0, static_cast<UINT>(mSkinnedMats.size())))
+	{
+		std::string submeshName = "sm_" + std::to_string(i);
+		
+		auto ritem = std::make_unique<RenderItem>();
+
+		XMMATRIX modelScale = XMMatrixScaling(0.05f, 0.05f, -0.05f);
+		XMMATRIX modelRot = XMMatrixRotationY(MathHelper::Pi);
+		XMMATRIX modelOffset = XMMatrixTranslation(0.0f, 0.0f, -5.0f);
+
+		MakeRenderItem(mSkinnedModelFilename, submeshName, mSkinnedMats[i].Name, modelScale * modelRot * modelOffset, 
+			XMMatrixIdentity(), RenderLayer::SkinnedOpaque, true, 0, mSkinnedModelInst.get());
+	}
 }
 
 void SkinnedMeshApp::BuildFrameResources()
@@ -774,7 +699,7 @@ void SkinnedMeshApp::BuildFrameResources()
 	for (auto i : Range(0, gNumFrameResources))
 	{
 		auto frameRes = std::make_unique<FrameResource>(md3dDevice.Get(), 2,
-			static_cast<UINT>(mAllRitems.size()), static_cast<UINT>(mMaterials.size()));
+			static_cast<UINT>(mAllRitems.size()), 1, static_cast<UINT>(mMaterials.size()));
 		mFrameResources.emplace_back(std::move(frameRes));
 	}
 }

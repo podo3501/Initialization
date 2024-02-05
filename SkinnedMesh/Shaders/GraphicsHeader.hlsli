@@ -15,7 +15,7 @@ struct MaterialData
 TextureCube gCubeMap : register(t0);
 Texture2D gShadowMap : register(t1);
 Texture2D gSsaoMap : register(t2);
-Texture2D gTextureMaps[10] : register(t3);
+Texture2D gTextureMaps[48] : register(t3);
 
 StructuredBuffer<MaterialData> gMaterialData : register(t0, space1);
 
@@ -37,7 +37,12 @@ cbuffer ObjectCB : register(b0)
     uint gOpjPad2;
 };
 
-cbuffer PassCB : register(b1)
+cbuffer cbSkinned : register(b1)
+{
+    float4x4 gBoneTransforms[96];
+};
+
+cbuffer PassCB : register(b2)
 {
     float4x4 gView;
     float4x4 gInvView;

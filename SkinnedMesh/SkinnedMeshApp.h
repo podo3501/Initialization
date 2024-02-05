@@ -131,7 +131,6 @@ private:
 	void BuildDescriptorHeaps();
 	void BuildShadersAndInputLayout();
 	void BuildShapeGeometry();
-	void BuildSkullGeometry();
 	void BuildFrameResources();
 	void BuildMaterials();
 	void MakeBaseDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
@@ -174,6 +173,7 @@ private:
 
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> mShaders;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mSkinnedInputLayout;
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> mGeometries;
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
