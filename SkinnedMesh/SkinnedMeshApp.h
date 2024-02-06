@@ -75,9 +75,12 @@ enum class RenderLayer : int
 enum class GraphicsPSO : int
 {
 	Opaque = 0,
+	SkinnedOpaque,
 	ShadowOpaque,
+	SkinnedShadowOpaque,
 	Debug,
 	DrawNormals,
+	SkinnedDrawNormals,
 	Ssao,
 	SsaoBlur,
 	Sky,
@@ -87,9 +90,12 @@ enum class GraphicsPSO : int
 constexpr std::array<GraphicsPSO, static_cast<size_t>(GraphicsPSO::Count)> GraphicsPSO_ALL
 {
 	GraphicsPSO::Opaque,
+	GraphicsPSO::SkinnedOpaque,
 	GraphicsPSO::ShadowOpaque,
+	GraphicsPSO::SkinnedShadowOpaque,
 	GraphicsPSO::Debug,
 	GraphicsPSO::DrawNormals,
+	GraphicsPSO::SkinnedDrawNormals,
 	GraphicsPSO::Ssao,
 	GraphicsPSO::SsaoBlur,
 	GraphicsPSO::Sky,
@@ -118,6 +124,7 @@ private:
 	void OnKeyboardInput(const GameTimer& gt);
 	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
+	void UpdateSkinnedCBs(const GameTimer& gt);
 	void UpdateMaterialBuffer(const GameTimer& gt);
 	void UpdateShadowTransform(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
@@ -133,11 +140,13 @@ private:
 	void BuildShapeGeometry();
 	void BuildFrameResources();
 	void BuildMaterials();
-	void MakeBaseDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeSkinnedOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeShadowOpaqueDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeSkinnedShadowOpaque(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeDebugDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeDrawNormals(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
+	void MakeSkinnedDrawNormals(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeSsao(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeSsaoBlur(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
 	void MakeSkyDesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC* inoutDesc);
