@@ -41,13 +41,13 @@ bool SkinnedMeshApp::Initialize()
 		mCommandList.Get(),
 		mClientWidth, mClientHeight);
 
+	LoadSkinnedModel();
 	LoadTextures();
 	BuildRootSignature();
 	BuildSsaoRootSignature();
 	BuildDescriptorHeaps();
 	BuildShadersAndInputLayout();
 	BuildShapeGeometry();
-	LoadSkinnedModel();
 	BuildMaterials();
 	BuildRenderItems();
 	BuildFrameResources();
@@ -100,8 +100,8 @@ void SkinnedMeshApp::LoadTextures()
 		std::string diffuseName = mat.DiffuseMapName;
 		std::string normalName = mat.NormalMapName;
 
-		std::wstring diffuseFilename = L"../Textures/" + AnsiToWString(diffuseName);
-		std::wstring normalFilename = L"../Textures/" + AnsiToWString(normalName);
+		std::wstring diffuseFilename = /*L"../Textures/" +*/ AnsiToWString(diffuseName);
+		std::wstring normalFilename = /*L"../Textures/" +*/ AnsiToWString(normalName);
 
 		diffuseName = diffuseName.substr(0, diffuseName.find_last_of("."));
 		normalName = normalName.substr(0, normalName.find_last_of("."));
