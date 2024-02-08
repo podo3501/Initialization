@@ -629,8 +629,9 @@ void SkinnedMeshApp::BuildMaterials()
 	UINT matCBIndex = static_cast<UINT>(mMaterials.size());
 	UINT srvHeapIndex = mSkinnedSrvHeapStart;
 	for_each(mSkinnedMats.begin(), mSkinnedMats.end(), [&](auto& skinMat) {
-		MakeMaterial(skinMat.Name, matCBIndex++, srvHeapIndex++, srvHeapIndex++,
+		MakeMaterial(skinMat.Name, matCBIndex++, srvHeapIndex, srvHeapIndex + 1,
 			skinMat.DiffuseAlbedo, skinMat.FresnelR0, skinMat.Roughness);
+		srvHeapIndex += 2;
 		});
 }
 
